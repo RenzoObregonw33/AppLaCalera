@@ -3,6 +3,108 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  /// Enviar datos de personas a la API
+  static Future<Map<String, dynamic>> sendPersonToApi({
+    required String document,
+    required int id,
+    required String movil,
+    String? photoFrontBase64,
+    String? photoReverseBase64,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final authToken = prefs.getString('auth_token') ?? '';
+    final url = Uri.parse('$baseUrl/web_services/verify-document');
+    final body = {
+      'document': document,
+      'id': id,
+      'movil': movil,
+      'photo_front': photoFrontBase64,
+      'photo_reverse': photoReverseBase64,
+    };
+    print('🔗 URL Registro Persona: $url');
+    print('📦 Body enviado: ${jsonEncode(body)}');
+    print('🔑 Token enviado en header: $authToken');
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              if (authToken.isNotEmpty) 'Authorization': authToken,
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 10));
+      print('📬 Status code: ${response.statusCode}');
+      print('📩 Respuesta body: ${response.body}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': data['success'] ?? false,
+          'message': data['message'] ?? '',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Error del servidor: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error al enviar persona a API: $e');
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  /// Obtiene la blacklist desde la API y la retorna como lista de mapas.
+  static Future<List<Map<String, dynamic>>> fetchBlacklistFromApi(
+    int organiId, {
+    String? token,
+  }) async {
+    final url = Uri.parse('$baseUrl/web_services/black-list');
+    print('🔗 URL Blacklist: $url');
+    print('🔑 Token recibido en API: $token');
+    print(
+      '📝 Header Authorization: ${token != null && token.isNotEmpty ? token : 'NO TOKEN'}',
+    );
+    print('📦 Body enviado: ${jsonEncode({'id': organiId})}');
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              if (token != null && token.isNotEmpty) 'Authorization': token,
+            },
+            body: jsonEncode({'id': organiId}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      print('📬 Status code: ${response.statusCode}');
+      print('📩 Respuesta body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('🗃️ Decoded data: $data');
+        if (data['success'] == true && data['blacklisted'] is List) {
+          print(
+            '✅ Blacklist recibida (${data['blacklisted'].length} registros)',
+          );
+          return List<Map<String, dynamic>>.from(data['blacklisted']);
+        } else {
+          print('⚠️ Respuesta sin blacklist válida: $data');
+        }
+      } else {
+        print('❌ Status code no es 200: ${response.statusCode}');
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error al obtener blacklist de API: $e');
+      return [];
+    }
+  }
+
   static const String baseUrl = 'https://rhnube.com.pe/api';
 
   static Future<Map<String, dynamic>> login(
@@ -32,6 +134,9 @@ class ApiService {
         final token = data['token'];
         if (token != null) {
           await prefs.setString('auth_token', token);
+          print('🔑 Token guardado en prefs: $token');
+        } else {
+          print('⚠️ No se recibió token en el login');
         }
         // Guardar fecha/hora de login (en milisegundos)
         await prefs.setInt('login_time', DateTime.now().millisecondsSinceEpoch);
@@ -65,6 +170,45 @@ class ApiService {
       }
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // 🔥 NUEVO MÉTODO: Obtener blacklist desde la API
+  static Future<Map<String, dynamic>> getBlacklist(int organiId) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/web_services/black-list'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'id': organiId}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      print("📡 Respuesta Blacklist API: ${response.statusCode}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': data['success'] ?? false,
+          'blacklisted': data['blacklisted'] ?? [],
+          'message': data['message'] ?? 'Blacklist obtenida correctamente',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Error del servidor: ${response.statusCode}',
+          'blacklisted': [],
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+        'blacklisted': [],
+      };
     }
   }
 

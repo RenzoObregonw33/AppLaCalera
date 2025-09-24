@@ -2,8 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:lacalera/screens/reset_password_screen.dart';
 import 'package:lacalera/services/api_services.dart';
+import 'package:lacalera/services/database_services.dart';
 import 'package:lacalera/models/user_models.dart';
 import 'package:lacalera/screens/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,7 +31,43 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // 🔥 VALIDADORES MEJORADOS
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Por favor ingrese su email';
+    }
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Ingrese un email válido';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Por favor ingrese su contraseña';
+    }
+    if (value.length < 6) {
+      return 'La contraseña debe tener al menos 6 caracteres';
+    }
+    return null;
+  }
+
+  // 🔥 LOGIN MEJORADO
   Future<void> _login() async {
+    // Primero validar
+    final emailError = _validateEmail(_emailController.text.trim());
+    final passwordError = _validatePassword(_passwordController.text.trim());
+
+    if (emailError != null || passwordError != null) {
+      setState(() {
+        _emailError = emailError;
+        _passwordError = passwordError;
+        _isLoading = false;
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _emailError = null;
@@ -38,39 +77,27 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    // Validaciones básicas
-    bool hasError = false;
-
-    if (email.isEmpty) {
-      setState(() {
-        _emailError = 'Por favor ingrese su email';
-      });
-      hasError = true;
-    }
-
-    if (password.isEmpty) {
-      setState(() {
-        _passwordError = 'Por favor ingrese su contraseña';
-      });
-      hasError = true;
-    }
-
-    if (hasError) {
-      setState(() {
-        _isLoading = false;
-      });
-      return;
-    }
-
     try {
       final response = await ApiService.login(email, password);
 
       if (response['success'] == true) {
         final user = User.fromJson(response['user']);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
-        );
+
+        // ✅ GUARDAR DATOS DE SESIÓN (esto te faltaba)
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', response['token'] ?? '');
+        await prefs.setInt('login_time', DateTime.now().millisecondsSinceEpoch);
+        await prefs.setString('user_data', jsonEncode(response['user']));
+
+        // 🔥 SINCRONIZAR BLACKLIST DESPUÉS DEL LOGIN
+        await _syncBlacklistForUser(user);
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
+          );
+        }
       } else {
         setState(() {
           _isLoading = false;
@@ -80,8 +107,40 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _emailError = 'Error de conexión: $e';
+        _emailError = 'Error de conexión. Verifique su internet';
       });
+    }
+  }
+
+  // 🔥 NUEVO MÉTODO: Sincronizar blacklist para todas las organizaciones
+  Future<void> _syncBlacklistForUser(User user) async {
+    try {
+      print(
+        "🔄 Sincronizando blacklist para ${user.organizaciones.length} organizaciones",
+      );
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      print('🔑 Token usado para blacklist: $token');
+      for (var organizacion in user.organizaciones) {
+        final blacklistResponse = await ApiService.fetchBlacklistFromApi(
+          organizacion.organiId,
+          token: token,
+        );
+        print('📥 Respuesta de API Blacklist: $blacklistResponse');
+        if (blacklistResponse.isNotEmpty) {
+          await DatabaseService.syncBlacklistFromApi(blacklistResponse);
+          print(
+            "✅ Blacklist sincronizada para org: ${organizacion.organiRazonSocial}",
+          );
+        } else {
+          print(
+            "⚠️ Error sincronizando blacklist para org ${organizacion.organiId}: Sin datos recibidos",
+          );
+        }
+      }
+    } catch (e) {
+      print("❌ Error en sincronización de blacklist: $e");
+      // No bloqueamos el login si falla la sincronización
     }
   }
 
@@ -224,14 +283,16 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ResetPasswordScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ResetPasswordScreen(),
+                            ),
+                          );
+                        },
                   child: const Text(
                     'Recuperar Contraseña',
                     style: TextStyle(
@@ -247,7 +308,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // Botón de Login
               _isLoading
-                  ? const CircularProgressIndicator()
+                  ? const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF1565C0),
+                      ),
+                    )
                   : SizedBox(
                       width: double.infinity,
                       height: 50,

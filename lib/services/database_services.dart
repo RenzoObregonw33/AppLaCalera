@@ -1,9 +1,10 @@
 import 'dart:io';
-
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseService {
+  /// Verifica si un DNI está en la blacklist local
+  /// Borra la tabla local de blacklist y la reemplaza con los datos recibidos de la API
   static Database? _database;
   static const String _dbName = 'personas.db';
   static const int _dbVersion = 4; // ✅ INCREMENTA a 4
@@ -299,6 +300,54 @@ class DatabaseService {
       await database; // Esto recreará la BD
     } catch (e) {
       print('❌ Error reseteando BD: $e');
+    }
+  }
+  // 🔥 NUEVO MÉTODO: Sincronizar blacklist desde la API
+  static Future<bool> syncBlacklistFromApi(List<dynamic> blacklistData) async {
+    try {
+      final db = await database;
+      
+      // Limpiar blacklist existente
+      await db.delete(tableBlacklist);
+      
+      // Insertar nuevos datos
+      for (var item in blacklistData) {
+        await db.insert(
+          tableBlacklist,
+          {
+            'dni': item['document']?.toString() ?? '',
+            'reason': item['reason']?.toString() ?? 'Sin motivo',
+            'created_at': item['created_at']?.toString() ?? DateTime.now().toIso8601String(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      
+      print("✅ Blacklist sincronizada: ${blacklistData.length} registros");
+      return true;
+    } catch (e) {
+      print("❌ Error sincronizando blacklist: $e");
+      return false;
+    }
+  }
+
+  // 🔥 MEJORAR método de verificación de DNI
+  static Future<Map<String, dynamic>> checkDniInBlacklist(String dni) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        tableBlacklist,
+        where: 'dni = ?',
+        whereArgs: [dni],
+      );
+      
+      return {
+        'isBlacklisted': result.isNotEmpty,
+        'data': result.isNotEmpty ? result.first : null,
+      };
+    } catch (e) {
+      print("❌ Error verificando blacklist: $e");
+      return {'isBlacklisted': false, 'data': null};
     }
   }
 }

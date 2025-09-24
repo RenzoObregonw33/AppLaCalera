@@ -30,8 +30,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _apellidoPaternoCtrl = TextEditingController();
   final _dniCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
-  String? _selectedModeloContrato = 'operario';
-  final List<String> _modeloContrato = ['colaborador', 'operario', 'encargado'];
+  String? _selectedModeloContrato = 'Colaborador';
+  final List<String> _modeloContrato = ['Colaborador'];
   File? _fotoDniFrente;
   File? _fotoDniReverso;
   final ImagePicker _picker = ImagePicker();
@@ -160,23 +160,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
       _isBlacklisted = isBlacklisted;
       _isCheckingBlacklist = false;
     });
-
-    if (isBlacklisted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("ADVERTENCIA: Este DNI está en la lista negra"),
-          backgroundColor: Colors.red[700],
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("DNI validado correctamente"),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
   }
 
   Future<File?> _tomarFoto(String tipo) async {
@@ -283,7 +266,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     setState(() {
       _fotoDniFrente = null;
       _fotoDniReverso = null;
-      _selectedModeloContrato = 'operario';
+      _selectedModeloContrato = 'Colaborador';
       _selectedCountry = _countries.firstWhere((c) => c.code == 'PE'); // Volver a Perú por defecto
       _isBlacklisted = false;
     });
@@ -302,7 +285,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
         _telefonoCtrl.clear();
         _fotoDniFrente = null;
         _fotoDniReverso = null;
-        _selectedModeloContrato = 'operario';
+        _selectedModeloContrato = 'Colaborador';
         _selectedCountry = _countries.firstWhere((c) => c.code == 'PE');
         _isBlacklisted = false;
       });
@@ -313,15 +296,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Registrar Persona"),
+        title: const Text("Registro de Candidatos"),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
         backgroundColor: const Color(0xFF1565C0),
         foregroundColor: Colors.white,
+        centerTitle: true,
         actions: [
-          IconButton(
+          /*IconButton(
             icon: Icon(Icons.delete_forever, color: Colors.red),
             onPressed: () async {
               await DatabaseService.resetDatabase();
@@ -329,13 +313,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 SnackBar(content: Text('Base de datos reseteada - Reinicia la app')));
             },
             tooltip: 'Reset BD (solo desarrollo)',
-          ),
+          ),*/
           IconButton(
             icon: const Icon(Icons.list, color: Colors.white),
             onPressed: _verRegistros,
             tooltip: 'Ver registros guardados',
           ),
-          IconButton(
+          /*IconButton(
             icon: const Icon(Icons.block, color: Colors.white),
             onPressed: () {
               Navigator.push(
@@ -346,7 +330,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               );
             },
             tooltip: 'Ver Blacklist',
-          ),
+          ),*/
         ],
       ),
       body: SingleChildScrollView(
@@ -438,7 +422,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     border: Border.all(color: Colors.red),
                   ),
                   child: const Text(
-                    "ADVERTENCIA: Este DNI está en la lista negra",
+                    "El DNI pertenece a la lista negra",
                     style: TextStyle(
                       color: Colors.red,
                       fontWeight: FontWeight.bold,
@@ -531,7 +515,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
                       controller: _telefonoCtrl,
                       decoration: InputDecoration(
                         labelText: "Teléfono (opcional)",
-                        hintText: "977308681",
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -611,7 +594,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _isBlacklisted ? "Bloqueado (Lista Negra)" : "Guardar Registro",
+                        _isBlacklisted ? "Registrar Candidato" : "Registrar Candidato",
                         style: TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ],

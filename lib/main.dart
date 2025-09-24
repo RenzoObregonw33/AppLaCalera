@@ -58,6 +58,33 @@ class MyApp extends StatelessWidget {
       title: 'Lacalera App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        // 🔥 NUEVO: Configurar el tema de los TextFields
+        inputDecorationTheme: InputDecorationTheme(
+          focusedBorder: OutlineInputBorder(
+            borderSide: const BorderSide(
+              color: Color(0xFF1565C0), // 🔥 AZUL en lugar de morado
+              width: 2.0,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Colors.grey),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Colors.red),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderSide: const BorderSide(
+              color: Colors.red,
+              width: 2.0,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          labelStyle: const TextStyle(color: Colors.grey),
+          floatingLabelStyle: const TextStyle(color: Color(0xFF1565C0)),
+        ),
       ),
       home: initialScreen,
       debugShowCheckedModeBanner: false,
