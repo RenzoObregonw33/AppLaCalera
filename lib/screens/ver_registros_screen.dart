@@ -18,6 +18,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   bool _seleccionarTodos = false;
   bool _isLoading = true;
   int _organiId = 0;
+  bool _filtroEnviados = false; // Nuevo estado para el filtro
 
   @override
   void initState() {
@@ -114,6 +115,8 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         lastMessage = response['message'] ?? '';
         if (response['success'] == true) {
           enviados++;
+          // Marcar como enviado en la base de datos
+          await DatabaseService.marcarEnviado(registro['id']);
         } else {
           errores++;
         }
@@ -163,7 +166,21 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   void _seleccionarTodosRegistros(bool? value) {
     setState(() {
       _seleccionarTodos = value ?? false;
-      _seleccionados = List<bool>.filled(_registros.length, _seleccionarTodos);
+      // Solo selecciona los registros filtrados
+      final registrosFiltrados = _registros
+          .where(
+            (r) =>
+                _filtroEnviados ? r['enviadaNube'] == 1 : r['enviadaNube'] != 1,
+          )
+          .toList();
+      for (int i = 0; i < _registros.length; i++) {
+        // Si el registro está en el filtro actual, selecciona/deselecciona
+        if (registrosFiltrados.contains(_registros[i])) {
+          _seleccionados[i] = _seleccionarTodos;
+        } else {
+          _seleccionados[i] = false;
+        }
+      }
     });
   }
 
@@ -589,6 +606,59 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
               ),
             ),
 
+          // Filtro visual en el body
+          if (_registros.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _filtroEnviados == false
+                            ? const Color(0xFF1565C0)
+                            : Colors.grey[200],
+                        foregroundColor: _filtroEnviados == false
+                            ? Colors.white
+                            : Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _filtroEnviados = false;
+                        });
+                      },
+                      child: const Text('Faltan enviar'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _filtroEnviados == true
+                            ? const Color(0xFF1565C0)
+                            : Colors.grey[200],
+                        foregroundColor: _filtroEnviados == true
+                            ? Colors.white
+                            : Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _filtroEnviados = true;
+                        });
+                      },
+                      child: const Text('Ya enviados'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Lista de registros
           Expanded(
             child: _isLoading
@@ -628,9 +698,26 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                     ),
                   )
                 : ListView.builder(
-                    itemCount: _registros.length,
+                    itemCount: _registros
+                        .where(
+                          (r) => _filtroEnviados == null
+                              ? true
+                              : (_filtroEnviados == true
+                                    ? r['enviadaNube'] == 1
+                                    : r['enviadaNube'] != 1),
+                        )
+                        .length,
                     itemBuilder: (context, index) {
-                      final registro = _registros[index];
+                      final registrosFiltrados = _registros
+                          .where(
+                            (r) => _filtroEnviados == null
+                                ? true
+                                : (_filtroEnviados == true
+                                      ? r['enviadaNube'] == 1
+                                      : r['enviadaNube'] != 1),
+                          )
+                          .toList();
+                      final registro = registrosFiltrados[index];
                       return Container(
                         margin: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -641,6 +728,9 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                          color: registro['enviadaNube'] == 1
+                              ? Color(0xFFB2F7EF) // Verde agua
+                              : Colors.white,
                           child: ListTile(
                             leading: Checkbox(
                               value: _seleccionados[index],
@@ -658,9 +748,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('DNI: ${registro['dni']}'),                      
-                              ],
+                              children: [Text('DNI: ${registro['dni']}')],
                             ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -694,5 +782,4 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       ),
     );
   }
-
 }

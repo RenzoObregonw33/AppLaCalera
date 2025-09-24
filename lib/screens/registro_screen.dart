@@ -5,8 +5,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lacalera/screens/barcode_scanner_screen.dart';
 import 'package:lacalera/screens/ver_registros_screen.dart';
 import 'package:lacalera/services/database_services.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:lacalera/screens/blacklist_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+//import 'package:lacalera/screens/blacklist_screen.dart';
 
 class Country {
   final String name;
@@ -14,7 +17,12 @@ class Country {
   final String dialCode;
   final String flag;
 
-  Country({required this.name, required this.code, required this.dialCode, required this.flag});
+  Country({
+    required this.name,
+    required this.code,
+    required this.dialCode,
+    required this.flag,
+  });
 }
 
 class RegistroScreen extends StatefulWidget {
@@ -25,6 +33,24 @@ class RegistroScreen extends StatefulWidget {
 }
 
 class _RegistroScreenState extends State<RegistroScreen> {
+  // Botón temporal para borrar la base de datos
+  Future<void> _resetDatabase() async {
+    final dbPath = await getDatabasesPath();
+    final file = File(p.join(dbPath, 'personas.db'));
+    if (await file.exists()) {
+      await file.delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Base de datos eliminada. Reinicia la app.'),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se encontró la base de datos.')),
+      );
+    }
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
@@ -37,7 +63,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isCheckingBlacklist = false;
   bool _isBlacklisted = false;
-  
+
   // Lista de países
   final List<Country> _countries = [
     Country(name: 'Perú', code: 'PE', dialCode: '+51', flag: '🇵🇪'),
@@ -52,9 +78,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
     Country(name: 'Brasil', code: 'BR', dialCode: '+55', flag: '🇧🇷'),
     Country(name: 'Venezuela', code: 'VE', dialCode: '+58', flag: '🇻🇪'),
   ];
-  
+
   // País seleccionado (Perú por defecto)
-  Country _selectedCountry = Country(name: 'Perú', code: 'PE', dialCode: '+51', flag: '🇵🇪');
+  Country _selectedCountry = Country(
+    name: 'Perú',
+    code: 'PE',
+    dialCode: '+51',
+    flag: '🇵🇪',
+  );
 
   // Función para mostrar el selector de países
   void _showCountryPicker() {
@@ -80,7 +111,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
                   itemBuilder: (context, index) {
                     final country = _countries[index];
                     return ListTile(
-                      leading: Text(country.flag, style: const TextStyle(fontSize: 20)),
+                      leading: Text(
+                        country.flag,
+                        style: const TextStyle(fontSize: 20),
+                      ),
                       title: Text(country.name),
                       trailing: Text(
                         country.dialCode,
@@ -174,28 +208,30 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
   // Función para tomar foto del frente del DNI
   Future<void> _tomarFotoFrente() async {
-    
     final fotoFrente = await _tomarFoto("dni_frente");
     if (fotoFrente != null) {
       setState(() {
         _fotoDniFrente = fotoFrente;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Foto del frente capturada correctamente")),
+        const SnackBar(
+          content: Text("Foto del frente capturada correctamente"),
+        ),
       );
     }
   }
 
   // Función para tomar foto del reverso del DNI
   Future<void> _tomarFotoReverso() async {
-    
     final fotoReverso = await _tomarFoto("dni_reverso");
     if (fotoReverso != null) {
       setState(() {
         _fotoDniReverso = fotoReverso;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Foto del reverso capturada correctamente")),
+        const SnackBar(
+          content: Text("Foto del reverso capturada correctamente"),
+        ),
       );
     }
   }
@@ -244,7 +280,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
       telefonoCompleto = '${_selectedCountry.dialCode} ${_telefonoCtrl.text}';
     }
 
-    await DatabaseService.insertPerson({
+    final prefs = await SharedPreferences.getInstance();
+    final organiId = prefs.getInt('organi_id') ?? 0;
+    final id = await DatabaseService.insertPerson({
       'nombre': _nombreCtrl.text,
       'apellidoPaterno': _apellidoPaternoCtrl.text,
       'dni': _dniCtrl.text,
@@ -253,11 +291,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
       'fotoDniFrente': _fotoDniFrente!.path,
       'fotoDniReverso': _fotoDniReverso!.path,
       'isBlacklisted': _isBlacklisted ? 1 : 0,
-    });
+      'organi_id': organiId,
+    }, context);
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Registro guardado ✅")));
+    if (id != 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Registro guardado ✅")));
+    }
 
     _nombreCtrl.clear();
     _apellidoPaternoCtrl.clear();
@@ -267,7 +308,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
       _fotoDniFrente = null;
       _fotoDniReverso = null;
       _selectedModeloContrato = 'Colaborador';
-      _selectedCountry = _countries.firstWhere((c) => c.code == 'PE'); // Volver a Perú por defecto
+      _selectedCountry = _countries.firstWhere(
+        (c) => c.code == 'PE',
+      ); // Volver a Perú por defecto
       _isBlacklisted = false;
     });
   }
@@ -305,15 +348,11 @@ class _RegistroScreenState extends State<RegistroScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
-          /*IconButton(
+          IconButton(
             icon: Icon(Icons.delete_forever, color: Colors.red),
-            onPressed: () async {
-              await DatabaseService.resetDatabase();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Base de datos reseteada - Reinicia la app')));
-            },
-            tooltip: 'Reset BD (solo desarrollo)',
-          ),*/
+            onPressed: _resetDatabase,
+            tooltip: 'Borrar base de datos (solo desarrollo)',
+          ),
           IconButton(
             icon: const Icon(Icons.list, color: Colors.white),
             onPressed: _verRegistros,
@@ -441,10 +480,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 controller: _nombreCtrl,
                 decoration: InputDecoration(
                   labelText: "Nombre",
-                  prefixIcon: Icon(
-                    Icons.person,
-                    color: Colors.grey.shade400,
-                  ),
+                  prefixIcon: Icon(Icons.person, color: Colors.grey.shade400),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -457,10 +493,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 controller: _apellidoPaternoCtrl,
                 decoration: InputDecoration(
                   labelText: "Apellido Paterno",
-                  prefixIcon: Icon(
-                    Icons.person,
-                    color: Colors.grey.shade400,
-                  ),
+                  prefixIcon: Icon(Icons.person, color: Colors.grey.shade400),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -468,7 +501,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 validator: (v) =>
                     v == null || v.isEmpty ? "Campo requerido" : null,
               ),
-              const SizedBox(height: 15),              
+              const SizedBox(height: 15),
               Row(
                 children: [
                   // Selector de código de país (ahora clickeable)
@@ -481,7 +514,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
                         border: Border.all(color: Colors.grey.shade400),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
@@ -504,7 +540,11 @@ class _RegistroScreenState extends State<RegistroScreen> {
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.arrow_drop_down, size: 16, color: Colors.grey),
+                          const Icon(
+                            Icons.arrow_drop_down,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
                         ],
                       ),
                     ),
@@ -522,7 +562,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
                       keyboardType: TextInputType.phone,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(15), // Máximo 15 dígitos
+                        LengthLimitingTextInputFormatter(
+                          15,
+                        ), // Máximo 15 dígitos
                       ],
                     ),
                   ),
@@ -560,16 +602,24 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 icon: Icons.credit_card,
               ),
               const SizedBox(height: 12),
-              
+
               // Fila con los botones de fotos del DNI
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   // Botón para foto del frente
-                  _buildFotoButton("Frente del DNI", _fotoDniFrente, _tomarFotoFrente),
-                  
+                  _buildFotoButton(
+                    "Frente del DNI",
+                    _fotoDniFrente,
+                    _tomarFotoFrente,
+                  ),
+
                   // Botón para foto del reverso
-                  _buildFotoButton("Reverso del DNI", _fotoDniReverso, _tomarFotoReverso),
+                  _buildFotoButton(
+                    "Reverso del DNI",
+                    _fotoDniReverso,
+                    _tomarFotoReverso,
+                  ),
                 ],
               ),
               const SizedBox(height: 30),
@@ -577,7 +627,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               // Botón Guardar
               Center(
                 child: ElevatedButton(
-                  onPressed: _isBlacklisted ? null : _guardarRegistro, 
+                  onPressed: _isBlacklisted ? null : _guardarRegistro,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isBlacklisted
                         ? Colors.grey
@@ -594,7 +644,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _isBlacklisted ? "Registrar Candidato" : "Registrar Candidato",
+                        _isBlacklisted
+                            ? "Registrar Candidato"
+                            : "Registrar Candidato",
                         style: TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ],
@@ -633,10 +685,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         const SizedBox(height: 8),
         GestureDetector(
@@ -647,10 +696,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFF1565C0),
-                width: 2,
-              ),
+              border: Border.all(color: const Color(0xFF1565C0), width: 2),
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),

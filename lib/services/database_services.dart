@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -44,12 +45,14 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         nombre TEXT, 
         apellidoPaterno TEXT,  
-        dni TEXT, 
+        dni TEXT UNIQUE, 
         telefono TEXT, 
         modeloContrato TEXT, 
         fotoDniFrente TEXT,
         fotoDniReverso TEXT,
-        isBlacklisted INTEGER DEFAULT 0
+        isBlacklisted INTEGER DEFAULT 0,
+        organi_id INTEGER,
+        enviadaNube INTEGER DEFAULT 0
       )
     ''');
 
@@ -67,7 +70,11 @@ class DatabaseService {
     print("✅ Tablas creadas correctamente");
   }
 
-  static Future<void> _upgradeDatabase(Database db, int oldVersion, int newVersion) async {
+  static Future<void> _upgradeDatabase(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     // Migración paso a paso
     if (oldVersion < 2) {
       await _migrateToV2(db);
@@ -87,7 +94,7 @@ class DatabaseService {
 
   static Future<void> _migrateToV3(Database db) async {
     print("🔄 Migrando a v3");
-    
+
     // Asegurar tabla blacklist
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableBlacklist(
@@ -102,23 +109,25 @@ class DatabaseService {
 
   static Future<void> _migrateToV4(Database db) async {
     print("🔄 Migrando a v4 - Agregando columna modeloContrato");
-    
+
     try {
       // Verificar si la columna modeloContrato ya existe
       final columns = await db.rawQuery("PRAGMA table_info($tablePersonas)");
-      final hasModeloContrato = columns.any((column) => column['name'] == 'modeloContrato');
-      
+      final hasModeloContrato = columns.any(
+        (column) => column['name'] == 'modeloContrato',
+      );
+
       if (!hasModeloContrato) {
         // Agregar la columna faltante
-        await db.execute('ALTER TABLE $tablePersonas ADD COLUMN modeloContrato TEXT');
-        print("✅ Columna 'modeloContrato' agregada a la tabla personas");
-        
-        // Actualizar registros existentes con un valor por defecto
-        await db.update(
-          tablePersonas, 
-          {'modeloContrato': 'operario'},
-          where: 'modeloContrato IS NULL'
+        await db.execute(
+          'ALTER TABLE $tablePersonas ADD COLUMN modeloContrato TEXT',
         );
+        print("✅ Columna 'modeloContrato' agregada a la tabla personas");
+
+        // Actualizar registros existentes con un valor por defecto
+        await db.update(tablePersonas, {
+          'modeloContrato': 'operario',
+        }, where: 'modeloContrato IS NULL');
       }
     } catch (e) {
       print("❌ Error en migración v4: $e");
@@ -129,11 +138,11 @@ class DatabaseService {
 
   static Future<void> _recreateTables(Database db) async {
     print("🔄 Recreando tablas...");
-    
+
     // Eliminar tablas existentes
     await db.execute('DROP TABLE IF EXISTS $tablePersonas');
     await db.execute('DROP TABLE IF EXISTS $tableBlacklist');
-    
+
     // Crear tablas nuevamente
     await _createTables(db);
   }
@@ -160,10 +169,13 @@ class DatabaseService {
   }
 
   // Insertar persona con manejo de errores mejorado
-  static Future<int> insertPerson(Map<String, dynamic> person) async {
+  static Future<int> insertPerson(
+    Map<String, dynamic> person,
+    BuildContext context,
+  ) async {
     try {
       final db = await database;
-      
+
       // Verificar que todos los campos requeridos estén presentes
       final completePerson = {
         'nombre': person['nombre'] ?? '',
@@ -174,10 +186,24 @@ class DatabaseService {
         'fotoDniFrente': person['fotoDniFrente'] ?? '',
         'fotoDniReverso': person['fotoDniReverso'] ?? '',
         'isBlacklisted': person['isBlacklisted'] ?? 0,
+        'organi_id': person['organi_id'] ?? 0,
+        'enviadaNube': person['enviadaNube'] ?? 0,
       };
-      
-      final id = await db.insert(tablePersonas, completePerson);
-      print("✅ Persona insertada con ID: $id");
+
+      final id = await db.insert(
+        tablePersonas,
+        completePerson,
+        conflictAlgorithm: ConflictAlgorithm.ignore, // <-- Ignora duplicados
+      );
+
+      if (id == 0) {
+        // El registro no se insertó porque el DNI ya existe
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("El DNI ya está registrado")),
+        );
+      } else {
+        print("✅ Persona insertada con ID: $id");
+      }
       return id;
     } catch (e) {
       print("❌ Error insertando persona: $e");
@@ -229,15 +255,11 @@ class DatabaseService {
   static Future<int> addToBlacklist(String dni, {String? reason}) async {
     try {
       final db = await database;
-      return await db.insert(
-        tableBlacklist,
-        {
-          'dni': dni,
-          'reason': reason ?? 'Añadido manualmente',
-          'created_at': DateTime.now().toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      return await db.insert(tableBlacklist, {
+        'dni': dni,
+        'reason': reason ?? 'Añadido manualmente',
+        'created_at': DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     } catch (e) {
       print("❌ Error añadiendo a blacklist: $e");
       return -1;
@@ -265,12 +287,12 @@ class DatabaseService {
       print('📊 DEBUG DATABASE INFO:');
       print('• Ruta: $path');
       print('• Versión: ${await db.getVersion()}');
-      
+
       final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table'"
+        "SELECT name FROM sqlite_master WHERE type='table'",
       );
       print('• Tablas: ${tables.map((t) => t['name']).toList()}');
-      
+
       for (var table in tables) {
         if (table['name'] == 'personas') {
           final columns = await db.rawQuery("PRAGMA table_info(personas)");
@@ -279,7 +301,9 @@ class DatabaseService {
             print('  - ${col['name']} (${col['type']})');
           }
         }
-        final count = await db.rawQuery('SELECT COUNT(*) as c FROM ${table['name']}');
+        final count = await db.rawQuery(
+          'SELECT COUNT(*) as c FROM ${table['name']}',
+        );
         print('• ${table['name']}: ${count.first['c']} registros');
       }
     } catch (e) {
@@ -302,27 +326,26 @@ class DatabaseService {
       print('❌ Error reseteando BD: $e');
     }
   }
+
   // 🔥 NUEVO MÉTODO: Sincronizar blacklist desde la API
   static Future<bool> syncBlacklistFromApi(List<dynamic> blacklistData) async {
     try {
       final db = await database;
-      
+
       // Limpiar blacklist existente
       await db.delete(tableBlacklist);
-      
+
       // Insertar nuevos datos
       for (var item in blacklistData) {
-        await db.insert(
-          tableBlacklist,
-          {
-            'dni': item['document']?.toString() ?? '',
-            'reason': item['reason']?.toString() ?? 'Sin motivo',
-            'created_at': item['created_at']?.toString() ?? DateTime.now().toIso8601String(),
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await db.insert(tableBlacklist, {
+          'dni': item['document']?.toString() ?? '',
+          'reason': item['reason']?.toString() ?? 'Sin motivo',
+          'created_at':
+              item['created_at']?.toString() ??
+              DateTime.now().toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
-      
+
       print("✅ Blacklist sincronizada: ${blacklistData.length} registros");
       return true;
     } catch (e) {
@@ -340,7 +363,7 @@ class DatabaseService {
         where: 'dni = ?',
         whereArgs: [dni],
       );
-      
+
       return {
         'isBlacklisted': result.isNotEmpty,
         'data': result.isNotEmpty ? result.first : null,
@@ -349,5 +372,16 @@ class DatabaseService {
       print("❌ Error verificando blacklist: $e");
       return {'isBlacklisted': false, 'data': null};
     }
+  }
+
+  // Marcar registro como enviado
+  static Future<void> marcarEnviado(int id) async {
+    final db = await database;
+    await db.update(
+      tablePersonas,
+      {'enviadaNube': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }
