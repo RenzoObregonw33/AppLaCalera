@@ -33,6 +33,7 @@ class RegistroScreen extends StatefulWidget {
 }
 
 class _RegistroScreenState extends State<RegistroScreen> {
+  bool _dniDuplicado = false;
   // Botón temporal para borrar la base de datos
   Future<void> _resetDatabase() async {
     final dbPath = await getDatabasesPath();
@@ -55,6 +56,40 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
   final _dniCtrl = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    _dniCtrl.addListener(_verificarDniDuplicado);
+  }
+
+  String? _ultimoDniDuplicado;
+  Future<void> _verificarDniDuplicado() async {
+    final dni = _dniCtrl.text.trim();
+    if (dni.length == 8) {
+      final existe = await DatabaseService.dniExiste(dni);
+      if (existe && (_ultimoDniDuplicado != dni)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('DNI duplicado. No puedes registrar este candidato.'),
+            backgroundColor: Colors.black,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        _ultimoDniDuplicado = dni;
+      } else if (!existe) {
+        _ultimoDniDuplicado = null;
+      }
+      setState(() {
+        _dniDuplicado = existe;
+      });
+    } else {
+      setState(() {
+        _dniDuplicado = false;
+      });
+      _ultimoDniDuplicado = null;
+    }
+  }
+
   final _telefonoCtrl = TextEditingController();
   String? _selectedModeloContrato = 'Colaborador';
   final List<String> _modeloContrato = ['Colaborador'];
@@ -275,9 +310,11 @@ class _RegistroScreenState extends State<RegistroScreen> {
     }
 
     // Preparar el teléfono con código de país
-    String telefonoCompleto = '';
+    String? telefonoCompleto;
     if (_telefonoCtrl.text.isNotEmpty) {
       telefonoCompleto = '${_selectedCountry.dialCode} ${_telefonoCtrl.text}';
+    } else {
+      telefonoCompleto = null;
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -358,18 +395,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
             onPressed: _verRegistros,
             tooltip: 'Ver registros guardados',
           ),
-          /*IconButton(
-            icon: const Icon(Icons.block, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const BlacklistScreen(),
-                ),
-              );
-            },
-            tooltip: 'Ver Blacklist',
-          ),*/
         ],
       ),
       body: SingleChildScrollView(
@@ -461,7 +486,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     border: Border.all(color: Colors.red),
                   ),
                   child: const Text(
-                    "El DNI pertenece a la lista negra",
+                    "El DNI ingresado no está habilitado para continuar con el registro.",
                     style: TextStyle(
                       color: Colors.red,
                       fontWeight: FontWeight.bold,
@@ -627,9 +652,11 @@ class _RegistroScreenState extends State<RegistroScreen> {
               // Botón Guardar
               Center(
                 child: ElevatedButton(
-                  onPressed: _isBlacklisted ? null : _guardarRegistro,
+                  onPressed: (_isBlacklisted || _dniDuplicado)
+                      ? null
+                      : _guardarRegistro,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isBlacklisted
+                    backgroundColor: (_isBlacklisted || _dniDuplicado)
                         ? Colors.grey
                         : const Color(0xFF1565C0),
                     padding: const EdgeInsets.symmetric(
@@ -644,9 +671,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _isBlacklisted
-                            ? "Registrar Candidato"
-                            : "Registrar Candidato",
+                        _dniDuplicado ? "Registrar candidato" : "Registrar Candidato",
                         style: TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ],

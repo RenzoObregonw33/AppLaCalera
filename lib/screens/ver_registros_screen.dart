@@ -14,11 +14,13 @@ class VerRegistrosScreen extends StatefulWidget {
 
 class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   List<Map<String, dynamic>> _registros = [];
-  List<bool> _seleccionados = [];
-  bool _seleccionarTodos = false;
+  List<bool> _seleccionadosFaltanEnviar = [];
+  List<bool> _seleccionadosYaEnviados = [];
+  bool _seleccionarTodosFaltanEnviar = false;
+  bool _seleccionarTodosYaEnviados = false;
   bool _isLoading = true;
   int _organiId = 0;
-  bool _filtroEnviados = false; // Nuevo estado para el filtro
+  bool _filtroEnviados = false;
 
   @override
   void initState() {
@@ -39,7 +41,6 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
           setState(() {
             _organiId = userData['organizaciones'][0]['organi_id'] ?? 0;
           });
-          // Guardar organi_id en SharedPreferences para uso futuro
           await prefs.setInt('organi_id', _organiId);
         }
       }
@@ -49,7 +50,9 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   }
 
   Future<void> _enviarSeleccionados() async {
-    if (_seleccionados.every((element) => !element)) {
+    final seleccionados = _getSeleccionadosActuales();
+
+    if (seleccionados.every((element) => !element)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Seleccione al menos un registro para enviar'),
@@ -74,7 +77,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text(
-              'Procesando ${_seleccionados.where((s) => s).length} registros...',
+              'Procesando ${seleccionados.where((s) => s).length} registros...',
             ),
           ],
         ),
@@ -82,7 +85,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
     );
 
     for (int i = 0; i < _registros.length; i++) {
-      if (_seleccionados[i]) {
+      if (seleccionados[i]) {
         final registro = _registros[i];
         String? fotoFrontBase64;
         String? fotoReverseBase64;
@@ -115,7 +118,6 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         lastMessage = response['message'] ?? '';
         if (response['success'] == true) {
           enviados++;
-          // Marcar como enviado en la base de datos
           await DatabaseService.marcarEnviado(registro['id']);
         } else {
           errores++;
@@ -123,27 +125,18 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       }
     }
 
-    Navigator.pop(context); // Cerrar diálogo de progreso
+    Navigator.pop(context);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('✅ Enviados: $enviados, ❌ Errores: $errores'),
-            if (lastMessage.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4.0),
-                child: Text(
-                  'Mensaje: $lastMessage',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-          ],
+        content: Text(
+          enviados > 0
+              ? 'Se enviaron los datos correctamente'
+              : 'No se enviaron los datos',
+          style: const TextStyle(fontSize: 14),
         ),
         backgroundColor: enviados > 0 ? Colors.green : Colors.red,
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -157,42 +150,96 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         await DatabaseService.getPeople();
     setState(() {
       _registros = registros;
-      _seleccionados = List<bool>.filled(registros.length, false);
-      _seleccionarTodos = false;
+      _seleccionadosFaltanEnviar = List<bool>.filled(registros.length, false);
+      _seleccionadosYaEnviados = List<bool>.filled(registros.length, false);
+      _seleccionarTodosFaltanEnviar = false;
+      _seleccionarTodosYaEnviados = false;
       _isLoading = false;
     });
   }
 
   void _seleccionarTodosRegistros(bool? value) {
     setState(() {
-      _seleccionarTodos = value ?? false;
-      // Solo selecciona los registros filtrados
-      final registrosFiltrados = _registros
-          .where(
-            (r) =>
-                _filtroEnviados ? r['enviadaNube'] == 1 : r['enviadaNube'] != 1,
-          )
-          .toList();
-      for (int i = 0; i < _registros.length; i++) {
-        // Si el registro está en el filtro actual, selecciona/deselecciona
-        if (registrosFiltrados.contains(_registros[i])) {
-          _seleccionados[i] = _seleccionarTodos;
-        } else {
-          _seleccionados[i] = false;
+      if (_filtroEnviados) {
+        _seleccionarTodosYaEnviados = value ?? false;
+        final registrosFiltrados = _getRegistrosFiltrados();
+        for (int i = 0; i < _seleccionadosYaEnviados.length; i++) {
+          if (registrosFiltrados.contains(i)) {
+            _seleccionadosYaEnviados[i] = _seleccionarTodosYaEnviados;
+          } else {
+            _seleccionadosYaEnviados[i] = false;
+          }
+        }
+      } else {
+        _seleccionarTodosFaltanEnviar = value ?? false;
+        final registrosFiltrados = _getRegistrosFiltrados();
+        for (int i = 0; i < _seleccionadosFaltanEnviar.length; i++) {
+          if (registrosFiltrados.contains(i)) {
+            _seleccionadosFaltanEnviar[i] = _seleccionarTodosFaltanEnviar;
+          } else {
+            _seleccionadosFaltanEnviar[i] = false;
+          }
         }
       }
     });
   }
 
-  void _toggleSeleccion(int index) {
+  void _toggleSeleccion(int indexFiltrado) {
+    final registrosFiltrados = _getRegistrosFiltrados();
+    if (indexFiltrado < 0 || indexFiltrado >= registrosFiltrados.length) return;
+    final realIndex = registrosFiltrados[indexFiltrado];
+
     setState(() {
-      _seleccionados[index] = !_seleccionados[index];
-      _seleccionarTodos = _seleccionados.every((s) => s);
+      if (_filtroEnviados) {
+        _seleccionadosYaEnviados[realIndex] =
+            !_seleccionadosYaEnviados[realIndex];
+        _seleccionarTodosYaEnviados = registrosFiltrados.every(
+          (i) => _seleccionadosYaEnviados[i],
+        );
+      } else {
+        _seleccionadosFaltanEnviar[realIndex] =
+            !_seleccionadosFaltanEnviar[realIndex];
+        _seleccionarTodosFaltanEnviar = registrosFiltrados.every(
+          (i) => _seleccionadosFaltanEnviar[i],
+        );
+      }
     });
   }
 
+  List<int> _getRegistrosFiltrados() {
+    return _registros
+        .asMap()
+        .entries
+        .where(
+          (entry) => _filtroEnviados
+              ? entry.value['enviadaNube'] == 1
+              : entry.value['enviadaNube'] != 1,
+        )
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  List<bool> _getSeleccionadosActuales() {
+    return _filtroEnviados
+        ? _seleccionadosYaEnviados
+        : _seleccionadosFaltanEnviar;
+  }
+
+  bool _getSeleccionarTodosActual() {
+    return _filtroEnviados
+        ? _seleccionarTodosYaEnviados
+        : _seleccionarTodosFaltanEnviar;
+  }
+
+  int _getCantidadSeleccionadosActual() {
+    final seleccionados = _getSeleccionadosActuales();
+    return seleccionados.where((s) => s).length;
+  }
+
   Future<void> _eliminarSeleccionados() async {
-    final seleccionadosCount = _seleccionados.where((s) => s).length;
+    final seleccionados = _getSeleccionadosActuales();
+    final seleccionadosCount = seleccionados.where((s) => s).length;
+
     if (seleccionadosCount == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -230,9 +277,10 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
 
     final db = await DatabaseService.database;
     int eliminados = 0;
+    final seleccionadosActuales = _getSeleccionadosActuales();
 
-    for (int i = _seleccionados.length - 1; i >= 0; i--) {
-      if (_seleccionados[i]) {
+    for (int i = seleccionadosActuales.length - 1; i >= 0; i--) {
+      if (seleccionadosActuales[i]) {
         await db.delete(
           'personas',
           where: 'id = ?',
@@ -294,6 +342,14 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
     );
   }
 
+  bool _isSeleccionado(int realIndex) {
+    if (_filtroEnviados) {
+      return _seleccionadosYaEnviados[realIndex];
+    } else {
+      return _seleccionadosFaltanEnviar[realIndex];
+    }
+  }
+
   void _mostrarDetallesCompletos(int index) {
     final registro = _registros[index];
     showDialog(
@@ -338,7 +394,16 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                   registro['modeloContrato'],
                   Icons.work,
                 ),
-
+                _buildInfoRow(
+                  'Fecha de Registro',
+                  registro['fechaRegistro'] != null
+                      ? registro['fechaRegistro']
+                            .toString()
+                            .substring(0, 16)
+                            .replaceFirst('T', ' ')
+                      : 'No disponible',
+                  Icons.calendar_today,
+                ),
                 if (registro['isBlacklisted'] == 1)
                   Container(
                     margin: const EdgeInsets.only(top: 10),
@@ -353,7 +418,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                         const Icon(Icons.warning, color: Colors.red),
                         const SizedBox(width: 8),
                         Text(
-                          'DNI en lista negra',
+                          'DNI Inhabilitado',
                           style: TextStyle(
                             color: Colors.red[700],
                             fontWeight: FontWeight.bold,
@@ -543,70 +608,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       ),
       body: Column(
         children: [
-          // 🔥 NUEVO: Panel de controles en el body
-          if (_registros.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-              ),
-              child: Row(
-                children: [
-                  // Checkbox para seleccionar todos
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _seleccionarTodos,
-                        onChanged: _seleccionarTodosRegistros,
-                        activeColor: const Color(0xFF1565C0),
-                      ),
-                      const Text('Seleccionar todos'),
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  // Contador de seleccionados
-                  if (_seleccionados.any((s) => s))
-                    Text(
-                      '${_seleccionados.where((s) => s).length} seleccionados',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1565C0),
-                      ),
-                    ),
-
-                  const Spacer(),
-
-                  // Botones de acción
-                  Row(
-                    children: [
-                      // Botón Enviar
-                      IconButton(
-                        icon: const Icon(
-                          Icons.cloud_upload,
-                          color: Colors.lightBlueAccent,
-                        ),
-                        onPressed: _enviarSeleccionados,
-                        tooltip: 'Enviar seleccionados',
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      // Botón Eliminar
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.grey),
-                        onPressed: _eliminarSeleccionados,
-                        tooltip: 'Eliminar seleccionados',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-          // Filtro visual en el body
+          // Filtro visual en el body Botones de filtro
           if (_registros.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -697,85 +699,167 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    itemCount: _registros
-                        .where(
-                          (r) => _filtroEnviados == null
-                              ? true
-                              : (_filtroEnviados == true
-                                    ? r['enviadaNube'] == 1
-                                    : r['enviadaNube'] != 1),
-                        )
-                        .length,
-                    itemBuilder: (context, index) {
-                      final registrosFiltrados = _registros
-                          .where(
-                            (r) => _filtroEnviados == null
-                                ? true
-                                : (_filtroEnviados == true
-                                      ? r['enviadaNube'] == 1
-                                      : r['enviadaNube'] != 1),
-                          )
-                          .toList();
-                      final registro = registrosFiltrados[index];
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                : Column(
+                    children: [
+                      // Panel de acciones solo para "Faltan enviar"
+                      if (!_filtroEnviados)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
                           ),
-                          color: registro['enviadaNube'] == 1
-                              ? Color(0xFFB2F7EF) // Verde agua
-                              : Colors.white,
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: _seleccionados[index],
-                              onChanged: (value) => _toggleSeleccion(index),
-                              activeColor: const Color(0xFF1565C0),
-                            ),
-                            title: Text(
-                              '${registro['nombre']} ${registro['apellidoPaterno']}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: _getSeleccionarTodosActual(),
+                                onChanged: _seleccionarTodosRegistros,
+                                activeColor: const Color(0xFF1565C0),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [Text('DNI: ${registro['dni']}')],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.info_outline,
+                              const Text('Seleccionar todos'),
+                              const Spacer(),
+                              if (_getCantidadSeleccionadosActual() > 0)
+                                Text(
+                                  '${_getCantidadSeleccionadosActual()} seleccionados',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
                                     color: Color(0xFF1565C0),
                                   ),
-                                  onPressed: () =>
-                                      _mostrarDetallesCompletos(index),
-                                  tooltip: 'Ver detalles',
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.grey,
-                                  ),
-                                  onPressed: () => _eliminarRegistro(index),
-                                  tooltip: 'Eliminar',
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.cloud_upload,
+                                  color: Colors.lightBlueAccent,
                                 ),
-                              ],
-                            ),
+                                onPressed: _enviarSeleccionados,
+                                tooltip: 'Enviar seleccionados',
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.grey,
+                                ),
+                                onPressed: _eliminarSeleccionados,
+                                tooltip: 'Eliminar seleccionados',
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    },
+                      // Panel de acciones solo para "Ya enviados"
+                      if (_filtroEnviados)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: _getSeleccionarTodosActual(),
+                                onChanged: _seleccionarTodosRegistros,
+                                activeColor: const Color(0xFF1565C0),
+                              ),
+                              const Text('Seleccionar todos'),
+                              const Spacer(),
+                              if (_getCantidadSeleccionadosActual() > 0)
+                                Text(
+                                  '${_getCantidadSeleccionadosActual()} seleccionados',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1565C0),
+                                  ),
+                                ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.grey,
+                                ),
+                                onPressed: _eliminarSeleccionados,
+                                tooltip: 'Eliminar seleccionados',
+                              ),
+                            ],
+                          ),
+                        ),
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            final registrosFiltrados = _getRegistrosFiltrados();
+                            return ListView.builder(
+                              itemCount: registrosFiltrados.length,
+                              itemBuilder: (context, index) {
+                                final realIndex = registrosFiltrados[index];
+                                final registro = _registros[realIndex];
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  child: Card(
+                                    elevation: 2,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    color: registro['enviadaNube'] == 1
+                                        ? Color(0xFFB2F7EF)
+                                        : Colors.white,
+                                    child: ListTile(
+                                      leading: Checkbox(
+                                        value: _isSeleccionado(realIndex),
+                                        onChanged: (value) =>
+                                            _toggleSeleccion(index),
+                                        activeColor: const Color(0xFF1565C0),
+                                      ),
+                                      title: Text(
+                                        '${registro['nombre']} ${registro['apellidoPaterno']} ',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text('DNI: ${registro['dni']}'),
+                                        ],
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.info_outline,
+                                              color: Color(0xFF1565C0),
+                                            ),
+                                            onPressed: () =>
+                                                _mostrarDetallesCompletos(
+                                                  realIndex,
+                                                ),
+                                            tooltip: 'Ver detalles',
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete,
+                                              color: Colors.grey,
+                                            ),
+                                            onPressed: () =>
+                                                _eliminarRegistro(realIndex),
+                                            tooltip: 'Eliminar',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ],

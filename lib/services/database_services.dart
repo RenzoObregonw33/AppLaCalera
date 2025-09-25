@@ -4,6 +4,17 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseService {
+  // Verifica si el DNI ya existe en la tabla personas
+  static Future<bool> dniExiste(String dni) async {
+    final db = await database;
+    final result = await db.query(
+      tablePersonas,
+      where: 'dni = ?',
+      whereArgs: [dni],
+    );
+    return result.isNotEmpty;
+  }
+
   /// Verifica si un DNI está en la blacklist local
   /// Borra la tabla local de blacklist y la reemplaza con los datos recibidos de la API
   static Database? _database;
@@ -52,7 +63,8 @@ class DatabaseService {
         fotoDniReverso TEXT,
         isBlacklisted INTEGER DEFAULT 0,
         organi_id INTEGER,
-        enviadaNube INTEGER DEFAULT 0
+        enviadaNube INTEGER DEFAULT 0,
+        fechaRegistro TEXT
       )
     ''');
 
@@ -188,6 +200,7 @@ class DatabaseService {
         'isBlacklisted': person['isBlacklisted'] ?? 0,
         'organi_id': person['organi_id'] ?? 0,
         'enviadaNube': person['enviadaNube'] ?? 0,
+        'fechaRegistro': DateTime.now().toIso8601String(),
       };
 
       final id = await db.insert(

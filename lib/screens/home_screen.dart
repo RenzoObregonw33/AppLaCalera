@@ -77,19 +77,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_forever),
-            tooltip: 'Resetear base de datos',
-            onPressed: () async {
-              // Importa DatabaseService si no está importado
-              await DatabaseService.resetDatabase();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Base de datos reseteada')),
-              );
-            },
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
