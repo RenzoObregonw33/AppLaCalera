@@ -153,6 +153,11 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Image.asset(
+                'assets/logorh.png', // Cambia la ruta si tu logo tiene otro nombre o carpeta
+                height: 100,
+              ),
+              const SizedBox(height: 16),
               const Text(
                 'Hola de nuevo!',
                 style: TextStyle(

@@ -4,6 +4,22 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseService {
+  /// Reemplaza la blacklist local con la lista recibida de la API
+  static Future<void> updateBlacklist(List<dynamic> blacklist) async {
+    final db = await database;
+    // Borra la tabla blacklist
+    await db.delete(tableBlacklist);
+    // Inserta los nuevos datos
+    for (final item in blacklist) {
+      await db.insert(tableBlacklist, {
+        'dni': item['document'],
+        'reason': item['reason'] ?? 'Sin motivo',
+        'created_at': item['created_at'] ?? DateTime.now().toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    print('✅ Blacklist actualizada (${blacklist.length} registros)');
+  }
+
   // Verifica si el DNI ya existe en la tabla personas
   static Future<bool> dniExiste(String dni) async {
     final db = await database;

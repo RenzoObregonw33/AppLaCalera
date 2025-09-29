@@ -176,12 +176,15 @@ class ApiService {
   // 🔥 NUEVO MÉTODO: Obtener blacklist desde la API
   static Future<Map<String, dynamic>> getBlacklist(int organiId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final authToken = prefs.getString('auth_token') ?? '';
       final response = await http
           .post(
             Uri.parse('$baseUrl/web_services/black-list'),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
+              if (authToken.isNotEmpty) 'Authorization': authToken,
             },
             body: jsonEncode({'id': organiId}),
           )

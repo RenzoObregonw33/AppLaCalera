@@ -586,7 +586,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Postulantes Guardados',
+          'Candidatos',
           style: TextStyle(color: Colors.white),
         ),
         leading: IconButton(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lacalera/screens/barcode_scanner_screen.dart';
 import 'package:lacalera/screens/ver_registros_screen.dart';
+import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -34,6 +35,8 @@ class RegistroScreen extends StatefulWidget {
 
 class _RegistroScreenState extends State<RegistroScreen> {
   bool _dniDuplicado = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   // Botón temporal para borrar la base de datos
   Future<void> _resetDatabase() async {
     final dbPath = await getDatabasesPath();
@@ -56,6 +59,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
   final _dniCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -251,6 +255,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Foto del frente capturada correctamente"),
+          duration: Duration(seconds: 1),
         ),
       );
     }
@@ -266,6 +271,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Foto del reverso capturada correctamente"),
+          duration: Duration(seconds: 1),
         ),
       );
     }
@@ -353,6 +359,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
   }
 
   void _verRegistros() {
+    // Cerrar el drawer antes de navegar
+    Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const VerRegistrosScreen()),
@@ -372,9 +380,52 @@ class _RegistroScreenState extends State<RegistroScreen> {
     });
   }
 
+  // Función para sincronizar la blacklist local manualmente
+  Future<void> _sincronizar() async {
+    Navigator.pop(context); // Cierra el Drawer si está abierto
+
+    // Obtén el organi_id desde SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final organiId = prefs.getInt('organi_id') ?? 0;
+
+    // Muestra un indicador de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Llama a la API para obtener la blacklist
+    final response = await ApiService.getBlacklist(organiId);
+
+    // Cierra el indicador de carga
+    Navigator.of(context, rootNavigator: true).pop();
+
+    if (response['success'] == true && response['blacklisted'] != null) {
+      // Actualiza la blacklist local
+      await DatabaseService.updateBlacklist(response['blacklisted']);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Se ha sincronizado correctamente'),
+          backgroundColor: Colors.black,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response['message'] ?? 'No se pudo actualizar la lista negra',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: const Text("Registro de Candidatos"),
         leading: IconButton(
@@ -385,18 +436,19 @@ class _RegistroScreenState extends State<RegistroScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
-          IconButton(
+          /*IconButton(
             icon: Icon(Icons.delete_forever, color: Colors.red),
             onPressed: _resetDatabase,
             tooltip: 'Borrar base de datos (solo desarrollo)',
-          ),
+          ),*/
           IconButton(
-            icon: const Icon(Icons.list, color: Colors.white),
-            onPressed: _verRegistros,
-            tooltip: 'Ver registros guardados',
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => _scaffoldKey.currentState!.openDrawer(),
+            tooltip: 'Abrir menú',
           ),
         ],
       ),
+      drawer: _buildDrawer(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -671,7 +723,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _dniDuplicado ? "Registrar candidato" : "Registrar Candidato",
+                        _dniDuplicado
+                            ? "Registrar candidato"
+                            : "Registrar Candidato",
                         style: TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ],
@@ -682,6 +736,55 @@ class _RegistroScreenState extends State<RegistroScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Widget para construir el menú lateral (Drawer)
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          SizedBox(
+            height: 130,
+            child: DrawerHeader(
+              decoration: const BoxDecoration(color: Color(0xFF1565C0)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  Text(
+                    'Opciones',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          offset: Offset(1, 2),
+                          blurRadius: 2,
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.sync, color: Color(0xFF1565C0)),
+            title: const Text('Sincronizar'),
+            onTap: _sincronizar,
+          ),
+          ListTile(
+            leading: const Icon(Icons.list_alt, color: Color(0xFF1565C0)),
+            title: const Text('Colaboradores'),
+            onTap: _verRegistros,
+          ),
+        ],
       ),
     );
   }
