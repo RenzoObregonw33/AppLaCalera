@@ -101,13 +101,13 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         setState(() {
           _isLoading = false;
-          _emailError = response['message'] ?? 'Error en el login';
+          _passwordError = response['message'] ?? 'Error en el login';
         });
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _emailError = 'Error de conexión. Verifique su internet';
+        _passwordError = 'Error de conexión. Verifique su internet';
       });
     }
   }

@@ -35,7 +35,7 @@ class ApiService {
             },
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 30));
       print('📬 Status code: ${response.statusCode}');
       print('📩 Respuesta body: ${response.body}');
       if (response.statusCode == 200) {
@@ -52,7 +52,20 @@ class ApiService {
       }
     } catch (e) {
       print('❌ Error al enviar persona a API: $e');
-      return {'success': false, 'message': 'Error de conexión: $e'};
+      
+      // Manejo específico de errores comunes en dispositivos reales
+      String errorMessage = 'Error de conexión';
+      if (e.toString().contains('TimeoutException')) {
+        errorMessage = 'Conexión lenta, inténtalo de nuevo';
+      } else if (e.toString().contains('SocketException')) {
+        errorMessage = 'Sin conexión a internet';
+      } else if (e.toString().contains('HandshakeException')) {
+        errorMessage = 'Error de certificado SSL';
+      } else if (e.toString().contains('FormatException')) {
+        errorMessage = 'Error en formato de respuesta del servidor';
+      }
+      
+      return {'success': false, 'message': errorMessage};
     }
   }
 
@@ -79,7 +92,7 @@ class ApiService {
             },
             body: jsonEncode({'id': organiId}),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 30));
 
       print('📬 Status code: ${response.statusCode}');
       print('📩 Respuesta body: ${response.body}');
@@ -169,7 +182,7 @@ class ApiService {
         };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Error de conexión: $e'};
+      return {'success': false, 'message': 'Ups, revisa tu conexión a internet'};
     }
   }
 
@@ -260,7 +273,7 @@ class ApiService {
       }
     } catch (e) {
       // Manejo de errores de conexión o tiempo de espera
-      return {'success': false, 'message': 'Error de conexión: $e'};
+      return {'success': false, 'message': 'Ups, revisa tu conexión a internet'};
     }
   }
 }

@@ -1,4 +1,4 @@
-package com.example.lacalera
+package com.lacalera.app
 
 import io.flutter.embedding.android.FlutterActivity
 

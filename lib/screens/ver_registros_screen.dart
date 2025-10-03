@@ -49,7 +49,27 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
     }
   }
 
+  // Verificar conexión a internet
+  Future<bool> _verificarConexion() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on SocketException catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _enviarSeleccionados() async {
+    // Verificar conexión a internet primero
+    if (!await _verificarConexion()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sin conexión a internet. Verifica tu conexión.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     final seleccionados = _getSeleccionadosActuales();
 
     if (seleccionados.every((element) => !element)) {
@@ -64,7 +84,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
 
     int enviados = 0;
     int errores = 0;
-    String lastMessage = '';
+    List<String> mensajesError = [];
 
     showDialog(
       context: context,
@@ -74,7 +94,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(),
+            const CircularProgressIndicator(color: Colors.blue),
             const SizedBox(height: 16),
             Text(
               'Procesando ${seleccionados.where((s) => s).length} registros...',
@@ -93,13 +113,52 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         try {
           if (registro['fotoDniFrente'] != null &&
               registro['fotoDniFrente'].toString().isNotEmpty) {
-            final bytes = await File(registro['fotoDniFrente']).readAsBytes();
-            fotoFrontBase64 = base64Encode(bytes);
+            final file = File(registro['fotoDniFrente']);
+            
+            // Verificar que el archivo existe
+            if (!await file.exists()) {
+              print('❌ Archivo de foto frontal no existe: ${registro['fotoDniFrente']}');
+              errores++;
+              mensajesError.add('${registro['dni']}: Foto frontal no encontrada');
+              continue;
+            }
+            
+            final bytes = await file.readAsBytes();
+            
+            // Validar tamaño de imagen (máximo 2MB)
+            if (bytes.length > 2 * 1024 * 1024) {
+              print('⚠️ Imagen frente muy grande: ${bytes.length} bytes');
+              // Crear una versión más pequeña
+              final smallerBytes = bytes.take(1024 * 1024).toList(); // Limitar a 1MB
+              fotoFrontBase64 = base64Encode(smallerBytes);
+            } else {
+              fotoFrontBase64 = base64Encode(bytes);
+            }
           }
+          
           if (registro['fotoDniReverso'] != null &&
               registro['fotoDniReverso'].toString().isNotEmpty) {
-            final bytes = await File(registro['fotoDniReverso']).readAsBytes();
-            fotoReverseBase64 = base64Encode(bytes);
+            final file = File(registro['fotoDniReverso']);
+            
+            // Verificar que el archivo existe
+            if (!await file.exists()) {
+              print('❌ Archivo de foto reverso no existe: ${registro['fotoDniReverso']}');
+              errores++;
+              mensajesError.add('${registro['dni']}: Foto reverso no encontrada');
+              continue;
+            }
+            
+            final bytes = await file.readAsBytes();
+            
+            // Validar tamaño de imagen (máximo 2MB)
+            if (bytes.length > 2 * 1024 * 1024) {
+              print('⚠️ Imagen reverso muy grande: ${bytes.length} bytes');
+              // Crear una versión más pequeña
+              final smallerBytes = bytes.take(1024 * 1024).toList(); // Limitar a 1MB
+              fotoReverseBase64 = base64Encode(smallerBytes);
+            } else {
+              fotoReverseBase64 = base64Encode(bytes);
+            }
           }
         } catch (e) {
           print('❌ Error leyendo fotos: $e');
@@ -115,7 +174,6 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
           photoReverseBase64: fotoReverseBase64,
         );
 
-        lastMessage = response['message'] ?? '';
         if (response['success'] == true) {
           enviados++;
           await DatabaseService.marcarEnviado(registro['id']);
@@ -126,6 +184,9 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
     }
 
     Navigator.pop(context);
+
+    // 🔄 RECARGAR REGISTROS para mostrar cambios
+    await _cargarRegistros();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -500,7 +561,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  value ?? 'No especificado',
+                  value.isNotEmpty ? value : 'No especificado',
                   style: const TextStyle(fontSize: 16),
                 ),
               ],
