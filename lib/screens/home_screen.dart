@@ -194,8 +194,20 @@ class HomeScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     onTap: () async {
                       // Guarda el organi_id seleccionado en SharedPreferences
+                      print('🏢 ===== SELECCIÓN DE ORGANIZACIÓN =====');
+                      print('👤 Usuario: ${user.persoNombre} ${user.persoApPaterno}');
+                      print('📧 Email: ${user.email}');
+                      print('🏢 Organizaciones disponibles: ${user.organizaciones.length}');
+                      print('🎯 Organización seleccionada:');
+                      print('   ID: ${org.organiId}');
+                      print('   Nombre: ${org.organiRazonSocial}');
+                      print('🏢 =====================================');
+                      
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.setInt('organi_id', org.organiId);
+                      
+                      print('💾 Organi_ID guardado en SharedPreferences: ${org.organiId}');
+                      
                       Navigator.push(
                         context,
                         MaterialPageRoute(

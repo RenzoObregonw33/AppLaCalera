@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BlacklistScreen extends StatefulWidget {
   const BlacklistScreen({Key? key}) : super(key: key);
@@ -12,11 +13,16 @@ class BlacklistScreen extends StatefulWidget {
 class _BlacklistScreenState extends State<BlacklistScreen> {
   Future<void> _syncFromApi() async {
     print('🔄 Solicitando datos a la API...');
-    final apiData = await ApiService.fetchBlacklistFromApi(749);
+    
+    // Obtener el organi_id actual
+    final prefs = await SharedPreferences.getInstance();
+    final organiId = prefs.getInt('organi_id') ?? 0;
+    
+    final apiData = await ApiService.fetchBlacklistFromApi(organiId);
     print('📥 Datos recibidos de la API:');
     print(apiData);
     if (apiData.isNotEmpty) {
-      final result = await DatabaseService.syncBlacklistFromApi(apiData);
+      final result = await DatabaseService.syncBlacklistFromApi(apiData, organiId);
       print('💾 Resultado de guardado en base local: $result');
       await _loadBlacklist();
       print('📂 Datos en base local tras sincronización:');
@@ -51,7 +57,28 @@ class _BlacklistScreenState extends State<BlacklistScreen> {
   }
 
   Future<void> _loadBlacklist() async {
-    final data = await DatabaseService.getBlacklist();
+    print('📋 ===== CARGANDO BLACKLIST EN PANTALLA =====');
+    
+    // Obtener el organi_id actual
+    final prefs = await SharedPreferences.getInstance();
+    final organiId = prefs.getInt('organi_id') ?? 0;
+    
+    print('🏢 Organización seleccionada: $organiId');
+    
+    final data = await DatabaseService.getBlacklist(organiId);
+    
+    print('📊 Registros cargados para mostrar en UI: ${data.length}');
+    if (data.isNotEmpty) {
+      print('📄 Datos que se mostrarán en la pantalla:');
+      for (int i = 0; i < data.length; i++) {
+        final item = data[i];
+        print('   ${i + 1}. DNI: ${item['dni']} | Razón: ${item['reason']}');
+      }
+    } else {
+      print('📝 No hay datos para mostrar en la pantalla');
+    }
+    print('📋 ==========================================');
+    
     setState(() {
       _blacklist = data;
     });

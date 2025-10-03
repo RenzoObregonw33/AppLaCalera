@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'api_services.dart';
 
 class DatabaseService {
   /// Reemplaza la blacklist local con la lista recibida de la API
@@ -35,7 +37,7 @@ class DatabaseService {
   /// Borra la tabla local de blacklist y la reemplaza con los datos recibidos de la API
   static Database? _database;
   static const String _dbName = 'personas.db';
-  static const int _dbVersion = 4; // ✅ INCREMENTA a 4
+  static const int _dbVersion = 5; // ✅ INCREMENTA a 5 para blacklist por organización
 
   // Tablas
   static const String tablePersonas = 'personas';
@@ -88,13 +90,15 @@ class DatabaseService {
     await db.execute('''
       CREATE TABLE $tableBlacklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        dni TEXT UNIQUE,
+        dni TEXT,
         reason TEXT,
-        created_at TEXT
+        created_at TEXT,
+        organi_id INTEGER,
+        UNIQUE(dni, organi_id)
       )
     ''');
 
-    await _insertDefaultBlacklistedDnis(db);
+    // NO insertar datos de ejemplo, solo crear estructura
     print("✅ Tablas creadas correctamente");
   }
 
@@ -113,6 +117,9 @@ class DatabaseService {
     if (oldVersion < 4) {
       await _migrateToV4(db);
     }
+    if (oldVersion < 5) {
+      await _migrateToV5(db);
+    }
   }
 
   static Future<void> _migrateToV2(Database db) async {
@@ -123,7 +130,7 @@ class DatabaseService {
   static Future<void> _migrateToV3(Database db) async {
     print("🔄 Migrando a v3");
 
-    // Asegurar tabla blacklist
+    // Asegurar tabla blacklist (sin organi_id aún)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $tableBlacklist(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,7 +139,7 @@ class DatabaseService {
         created_at TEXT
       )
     ''');
-    await _insertDefaultBlacklistedDnis(db);
+    // NO insertar ejemplos, esperar sincronización con API
   }
 
   static Future<void> _migrateToV4(Database db) async {
@@ -164,6 +171,49 @@ class DatabaseService {
     }
   }
 
+  static Future<void> _migrateToV5(Database db) async {
+    print("🔄 Migrando a v5 - Blacklist por organización");
+
+    try {
+      // Verificar si la columna organi_id ya existe en blacklist
+      final columns = await db.rawQuery("PRAGMA table_info($tableBlacklist)");
+      final hasOrganiId = columns.any((column) => column['name'] == 'organi_id');
+
+      if (!hasOrganiId) {
+        // Agregar la columna organi_id
+        await db.execute('ALTER TABLE $tableBlacklist ADD COLUMN organi_id INTEGER DEFAULT 0');
+        print("✅ Columna 'organi_id' agregada a blacklist");
+        
+        // Quitar la restricción UNIQUE de dni solo, ahora será UNIQUE(dni, organi_id)
+        // Recrear la tabla con la nueva estructura
+        await db.execute('ALTER TABLE $tableBlacklist RENAME TO ${tableBlacklist}_old');
+        
+        await db.execute('''
+          CREATE TABLE $tableBlacklist(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dni TEXT,
+            reason TEXT,
+            created_at TEXT,
+            organi_id INTEGER,
+            UNIQUE(dni, organi_id)
+          )
+        ''');
+        
+        // Migrar datos existentes
+        await db.execute('''
+          INSERT INTO $tableBlacklist (dni, reason, created_at, organi_id)
+          SELECT dni, reason, created_at, 0 FROM ${tableBlacklist}_old
+        ''');
+        
+        // Eliminar tabla antigua
+        await db.execute('DROP TABLE ${tableBlacklist}_old');
+        print("✅ Tabla blacklist reestructurada para soportar organizaciones");
+      }
+    } catch (e) {
+      print("❌ Error en migración v5: $e");
+    }
+  }
+
   static Future<void> _recreateTables(Database db) async {
     print("🔄 Recreando tablas...");
 
@@ -173,27 +223,6 @@ class DatabaseService {
 
     // Crear tablas nuevamente
     await _createTables(db);
-  }
-
-  // Insertar DNIs de ejemplo
-  static Future<void> _insertDefaultBlacklistedDnis(Database db) async {
-    final defaultDnis = [
-      {'dni': '12345678', 'reason': 'Ejemplo 1'},
-      {'dni': '87654321', 'reason': 'Ejemplo 2'},
-      {'dni': '11111111', 'reason': 'Ejemplo 3'},
-      {'dni': '22222222', 'reason': 'Ejemplo 4'},
-      {'dni': '33333333', 'reason': 'Ejemplo 5'},
-    ];
-
-    for (var dniData in defaultDnis) {
-      await db.insert(tableBlacklist, {
-        'dni': dniData['dni'],
-        'reason': dniData['reason'],
-        'created_at': DateTime.now().toIso8601String(),
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-    }
-
-    print("🛡️ Blacklist inicial cargada (${defaultDnis.length} DNIs)");
   }
 
   // Insertar persona con manejo de errores mejorado
@@ -256,36 +285,114 @@ class DatabaseService {
   }
 
   // Métodos Blacklist
-  static Future<bool> isDniBlacklisted(String dni) async {
+  static Future<bool> isDniBlacklisted(String dni, int organiId) async {
     try {
+      print('🔍 ===== VERIFICANDO DNI EN BLACKLIST =====');
+      print('📋 DNI a verificar: "$dni"');
+      print('🏢 Organización ID: $organiId');
+      
       final db = await database;
+      
+      // Primero verificar que hay datos en la blacklist para esta organización
+      final allRecords = await db.query(
+        tableBlacklist,
+        where: 'organi_id = ?',
+        whereArgs: [organiId],
+      );
+      print('📊 Total de registros en blacklist para org $organiId: ${allRecords.length}');
+      
+      if (allRecords.isNotEmpty) {
+        print('📄 Registros existentes en blacklist:');
+        for (var record in allRecords) {
+          print('   - DNI: "${record['dni']}" | Razón: "${record['reason']}" | Org: ${record['organi_id']}');
+        }
+      }
+      
+      // Ahora hacer la búsqueda específica
       final result = await db.query(
         tableBlacklist,
-        where: 'dni = ?',
-        whereArgs: [dni],
+        where: 'dni = ? AND organi_id = ?',
+        whereArgs: [dni, organiId],
       );
-      return result.isNotEmpty;
+      
+      final isBlacklisted = result.isNotEmpty;
+      print('❌ ¿Está en blacklist?: ${isBlacklisted ? 'SÍ' : 'NO'}');
+      
+      if (isBlacklisted) {
+        final blacklistData = result.first;
+        print('📄 Datos del registro encontrado:');
+        print('   - DNI: "${blacklistData['dni']}"');
+        print('   - Organización: ${blacklistData['organi_id']}');
+        print('   - Razón: "${blacklistData['reason']}"');
+        print('   - Fecha creación: ${blacklistData['created_at']}');
+      } else {
+        print('✅ DNI no encontrado en blacklist');
+        // Verificar si hay coincidencia exacta de caracteres
+        final similarRecords = await db.query(
+          tableBlacklist,
+          where: 'organi_id = ?',
+          whereArgs: [organiId],
+        );
+        for (var record in similarRecords) {
+          if (record['dni'].toString().trim() == dni.trim()) {
+            print('⚠️ ENCONTRADO COINCIDENCIA EXACTA PERO QUERY FALLÓ');
+            print('   Record DNI: "${record['dni']}" (length: ${record['dni'].toString().length})');
+            print('   Search DNI: "$dni" (length: ${dni.length})');
+          }
+        }
+      }
+      print('🔍 =======================================');
+      
+      return isBlacklisted;
     } catch (e) {
       print("❌ Error verificando blacklist: $e");
       return false;
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getBlacklist() async {
+  static Future<List<Map<String, dynamic>>> getBlacklist(int organiId) async {
     try {
+      print('📋 ===== OBTENIENDO BLACKLIST =====');
+      print('🏢 Organización ID: $organiId');
+      
       final db = await database;
-      return await db.query(tableBlacklist);
+      final result = await db.query(
+        tableBlacklist,
+        where: 'organi_id = ?',
+        whereArgs: [organiId],
+        orderBy: 'created_at DESC',
+      );
+      
+      print('📊 Total de registros en blacklist: ${result.length}');
+      
+      if (result.isNotEmpty) {
+        print('📄 Datos de la blacklist:');
+        for (int i = 0; i < result.length; i++) {
+          final item = result[i];
+          print('   ${i + 1}. DNI: ${item['dni']}');
+          print('      - Organización: ${item['organi_id']}');
+          print('      - Razón: ${item['reason']}');
+          print('      - Fecha: ${item['created_at']}');
+          print('      ________________');
+        }
+      } else {
+        print('📝 No hay registros en la blacklist para esta organización');
+      }
+      print('📋 ===============================');
+      
+      return result;
     } catch (e) {
       print("❌ Error obteniendo blacklist: $e");
       return [];
     }
   }
 
-  static Future<int> addToBlacklist(String dni, {String? reason}) async {
+  static Future<int> addToBlacklist(String dni, int organiId, {String? reason}) async {
     try {
       final db = await database;
       return await db.insert(tableBlacklist, {
         'dni': dni,
+        'organi_id': organiId,
         'reason': reason ?? 'Añadido manualmente',
         'created_at': DateTime.now().toIso8601String(),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -295,13 +402,13 @@ class DatabaseService {
     }
   }
 
-  static Future<int> removeFromBlacklist(String dni) async {
+  static Future<int> removeFromBlacklist(String dni, int organiId) async {
     try {
       final db = await database;
       return await db.delete(
         tableBlacklist,
-        where: 'dni = ?',
-        whereArgs: [dni],
+        where: 'dni = ? AND organi_id = ?',
+        whereArgs: [dni, organiId],
       );
     } catch (e) {
       print("❌ Error eliminando de blacklist: $e");
@@ -357,25 +464,93 @@ class DatabaseService {
   }
 
   // 🔥 NUEVO MÉTODO: Sincronizar blacklist desde la API
-  static Future<bool> syncBlacklistFromApi(List<dynamic> blacklistData) async {
+  static Future<bool> syncBlacklistFromApi(List<dynamic> blacklistData, int organiId) async {
     try {
+      print('🔄 ===== SINCRONIZANDO BLACKLIST DESDE API =====');
+      print('🏢 Organización ID: $organiId');
+      print('📊 Total de registros recibidos de API: ${blacklistData.length}');
+      
       final db = await database;
 
-      // Limpiar blacklist existente
-      await db.delete(tableBlacklist);
-
-      // Insertar nuevos datos
-      for (var item in blacklistData) {
-        await db.insert(tableBlacklist, {
-          'dni': item['document']?.toString() ?? '',
-          'reason': item['reason']?.toString() ?? 'Sin motivo',
-          'created_at':
-              item['created_at']?.toString() ??
-              DateTime.now().toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      // Mostrar blacklist existente antes de limpiar
+      final existingData = await db.query(
+        tableBlacklist, 
+        where: 'organi_id = ?', 
+        whereArgs: [organiId]
+      );
+      print('📋 Registros existentes en blacklist (antes): ${existingData.length}');
+      
+      if (existingData.isNotEmpty) {
+        print('📄 Blacklist existente:');
+        for (var item in existingData) {
+          print('   - DNI: ${item['dni']} | Razón: ${item['reason']}');
+        }
       }
 
-      print("✅ Blacklist sincronizada: ${blacklistData.length} registros");
+      // Limpiar blacklist existente solo para esta organización
+      final deletedRows = await db.delete(tableBlacklist, where: 'organi_id = ?', whereArgs: [organiId]);
+      print('🗑️ Registros eliminados: $deletedRows');
+
+      // Mostrar datos que se van a insertar
+      print('📥 Datos nuevos de la API:');
+      for (int i = 0; i < blacklistData.length; i++) {
+        final item = blacklistData[i];
+        print('   ${i + 1}. DNI: ${item['document']?.toString() ?? 'Sin DNI'}');
+        print('      - ID: ${item['id']}');
+        print('      - Name: ${item['name']}');
+        print('      - First Name: ${item['first_name']}');
+        print('      - Last Name: ${item['last_name']}');
+        print('      - Razón: ${item['reason']?.toString() ?? 'Sin motivo (NULL)'}');
+        print('      - OrganiId de la API: ${item['organi_id']}');
+        print('      - Fecha: ${item['created_at']?.toString() ?? 'Sin fecha'}');
+        print('      - Para organización local: $organiId');
+        print('      ________________');
+      }
+
+      // Insertar nuevos datos
+      int insertedCount = 0;
+      for (var item in blacklistData) {
+        try {
+          final dni = item['document']?.toString() ?? '';
+          final reason = item['reason']?.toString() ?? 'DNI en lista negra';
+          
+          print('💾 Insertando: DNI=$dni, Reason=$reason, OrganiId=$organiId');
+          
+          await db.insert(tableBlacklist, {
+            'dni': dni,
+            'organi_id': organiId,
+            'reason': reason,
+            'created_at':
+                item['created_at']?.toString() ??
+                DateTime.now().toIso8601String(),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          insertedCount++;
+          print('✅ Insertado exitosamente: $dni');
+        } catch (e) {
+          print('❌ Error insertando DNI ${item['document']}: $e');
+        }
+      }
+
+      // Verificar que se guardó correctamente
+      final finalData = await db.query(
+        tableBlacklist, 
+        where: 'organi_id = ?', 
+        whereArgs: [organiId]
+      );
+      
+      print('✅ ===== SINCRONIZACIÓN COMPLETADA =====');
+      print('📊 Registros insertados exitosamente: $insertedCount');
+      print('📊 Total de registros en blacklist (después): ${finalData.length}');
+      print('🏢 Organización: $organiId');
+      
+      if (finalData.isNotEmpty) {
+        print('📄 Blacklist final:');
+        for (var item in finalData) {
+          print('   - DNI: ${item['dni']} | Razón: ${item['reason']} | Org: ${item['organi_id']}');
+        }
+      }
+      print('✅ ====================================');
+
       return true;
     } catch (e) {
       print("❌ Error sincronizando blacklist: $e");
@@ -384,13 +559,13 @@ class DatabaseService {
   }
 
   // 🔥 MEJORAR método de verificación de DNI
-  static Future<Map<String, dynamic>> checkDniInBlacklist(String dni) async {
+  static Future<Map<String, dynamic>> checkDniInBlacklist(String dni, int organiId) async {
     try {
       final db = await database;
       final result = await db.query(
         tableBlacklist,
-        where: 'dni = ?',
-        whereArgs: [dni],
+        where: 'dni = ? AND organi_id = ?',
+        whereArgs: [dni, organiId],
       );
 
       return {
@@ -400,6 +575,160 @@ class DatabaseService {
     } catch (e) {
       print("❌ Error verificando blacklist: $e");
       return {'isBlacklisted': false, 'data': null};
+    }
+  }
+
+  // 🔧 FUNCIÓN DE DEBUG MANUAL: Forzar sincronización de blacklist
+  static Future<void> debugSyncBlacklist() async {
+    print('\n🔧 ===== DEBUG: FORZANDO SINCRONIZACIÓN MANUAL =====');
+    
+    try {
+      // Verificar que la tabla blacklist existe
+      final db = await database;
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='blacklist'"
+      );
+      print('🗄️ Tabla blacklist existe: ${tables.isNotEmpty}');
+      
+      if (tables.isNotEmpty) {
+        final columns = await db.rawQuery("PRAGMA table_info(blacklist)");
+        print('📋 Columnas de la tabla blacklist:');
+        for (var col in columns) {
+          print('   - ${col['name']} (${col['type']})');
+        }
+      } else {
+        print('❌ ¡TABLA BLACKLIST NO EXISTE! Necesita ejecutar migración.');
+        return; // Salir si no existe la tabla
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      final organiId = 749; // Forzar organización 749 para debug
+      
+      print('🔑 Token: ${token.isNotEmpty ? 'SÍ tiene token' : 'NO tiene token'}');
+      print('🏢 OrganiId: $organiId');
+      
+      // Llamar directamente a la API
+      print('📡 Llamando a la API...');
+      final blacklistResponse = await ApiService.fetchBlacklistFromApi(
+        organiId,
+        token: token,
+      );
+      
+      print('📊 Datos recibidos: ${blacklistResponse.length} registros');
+      
+      if (blacklistResponse.isNotEmpty) {
+        print('💾 Sincronizando con base de datos...');
+        await syncBlacklistFromApi(blacklistResponse, organiId);
+        
+        // Verificar que se guardó
+        final savedData = await getBlacklist(organiId);
+        print('✅ Verificación: ${savedData.length} registros guardados');
+        
+        // Probar DNI específico
+        await testDniBlacklist('44781567', organiId);
+      } else {
+        print('❌ No se recibieron datos de la API');
+      }
+      
+    } catch (e) {
+      print('❌ Error en debug sync: $e');
+    }
+    
+    print('🔧 ===============================================\n');
+  }
+
+  // 🧪 FUNCIÓN DE TESTING: Probar DNI específico
+  static Future<void> testDniBlacklist(String dni, int organiId) async {
+    print('\n🧪 ===== TEST DNI BLACKLIST =====');
+    print('📋 DNI de prueba: "$dni"');
+    print('🏢 Organización: $organiId');
+    
+    try {
+      final db = await database;
+      
+      // Ver todos los registros de la organización
+      final allRecords = await db.query(
+        tableBlacklist,
+        where: 'organi_id = ?',
+        whereArgs: [organiId],
+      );
+      
+      print('📊 Total registros en blacklist org $organiId: ${allRecords.length}');
+      print('📄 Registros disponibles:');
+      for (var record in allRecords) {
+        print('   - "${record['dni']}" (${record['dni'].toString().length} chars)');
+      }
+      
+      // Probar búsqueda exacta
+      final exactMatch = await db.query(
+        tableBlacklist,
+        where: 'dni = ? AND organi_id = ?',
+        whereArgs: [dni, organiId],
+      );
+      
+      print('🔍 Búsqueda exacta encontró: ${exactMatch.length} registros');
+      
+      // Probar la función oficial
+      final result = await isDniBlacklisted(dni, organiId);
+      print('✅ Resultado final: ${result ? 'BLOQUEADO' : 'PERMITIDO'}');
+      
+    } catch (e) {
+      print('❌ Error en test: $e');
+    }
+    
+    print('🧪 ===========================\n');
+  }
+
+  // 🔍 FUNCIÓN DE DEBUG: Mostrar todas las blacklists por organización
+  static Future<void> showAllBlacklists() async {
+    try {
+      print('🔍 ===== MOSTRANDO TODAS LAS BLACKLISTS =====');
+      
+      final db = await database;
+      
+      // Obtener todas las organizaciones únicas
+      final organizations = await db.rawQuery(
+        'SELECT DISTINCT organi_id FROM $tableBlacklist ORDER BY organi_id'
+      );
+      
+      print('🏢 Organizaciones con blacklist: ${organizations.length}');
+      
+      for (var org in organizations) {
+        final organiId = org['organi_id'];
+        print('\n🏢 ===== ORGANIZACIÓN $organiId =====');
+        
+        final blacklistData = await db.query(
+          tableBlacklist,
+          where: 'organi_id = ?',
+          whereArgs: [organiId],
+          orderBy: 'created_at DESC',
+        );
+        
+        print('📊 Total de registros: ${blacklistData.length}');
+        
+        if (blacklistData.isNotEmpty) {
+          for (int i = 0; i < blacklistData.length; i++) {
+            final item = blacklistData[i];
+            print('   ${i + 1}. DNI: ${item['dni']}');
+            print('      - Razón: ${item['reason']}');
+            print('      - Fecha: ${item['created_at']}');
+            print('      ________________');
+          }
+        } else {
+          print('📝 Sin registros en blacklist');
+        }
+      }
+      
+      // Mostrar estadísticas generales
+      final totalRecords = await db.rawQuery('SELECT COUNT(*) as total FROM $tableBlacklist');
+      print('\n📊 ===== ESTADÍSTICAS GENERALES =====');
+      print('🔢 Total de registros en blacklist: ${totalRecords.first['total']}');
+      print('🏢 Total de organizaciones: ${organizations.length}');
+      print('🔍 ===================================');
+      
+    } catch (e) {
+      print("❌ Error mostrando blacklists: $e");
     }
   }
 

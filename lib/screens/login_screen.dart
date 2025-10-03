@@ -89,6 +89,14 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setInt('login_time', DateTime.now().millisecondsSinceEpoch);
         await prefs.setString('user_data', jsonEncode(response['user']));
 
+        print('🔥 ===== INICIANDO SINCRONIZACIÓN DE BLACKLIST =====');
+        print('👤 Usuario logueado exitosamente');
+        print('🏢 Organizaciones del usuario: ${user.organizaciones.length}');
+        for (var org in user.organizaciones) {
+          print('   - ID: ${org.organiId}, Nombre: ${org.organiRazonSocial}');
+        }
+        print('🔥 ================================================');
+
         // 🔥 SINCRONIZAR BLACKLIST DESPUÉS DEL LOGIN
         await _syncBlacklistForUser(user);
 
@@ -115,29 +123,55 @@ class _LoginScreenState extends State<LoginScreen> {
   // 🔥 NUEVO MÉTODO: Sincronizar blacklist para todas las organizaciones
   Future<void> _syncBlacklistForUser(User user) async {
     try {
-      print(
-        "🔄 Sincronizando blacklist para ${user.organizaciones.length} organizaciones",
-      );
+      print("🔄 ===== FUNCIÓN _syncBlacklistForUser INICIADA =====");
+      print("🏢 Sincronizando blacklist para ${user.organizaciones.length} organizaciones");
+      
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? '';
       print('🔑 Token usado para blacklist: $token');
+      
       for (var organizacion in user.organizaciones) {
+        print('\n📡 ===== PROCESANDO ORGANIZACIÓN ${organizacion.organiId} =====');
+        print('🏢 Nombre: ${organizacion.organiRazonSocial}');
+        print('🔗 Llamando API para organiId: ${organizacion.organiId}');
+        
         final blacklistResponse = await ApiService.fetchBlacklistFromApi(
           organizacion.organiId,
           token: token,
         );
-        print('📥 Respuesta de API Blacklist: $blacklistResponse');
+        
+        print('📥 ===== RESPUESTA DE API PARA ORG ${organizacion.organiId} =====');
+        print('📊 Tipo de respuesta: ${blacklistResponse.runtimeType}');
+        print('📊 Cantidad de registros: ${blacklistResponse.length}');
+        print('📄 Primeros registros: ${blacklistResponse.take(3).toList()}');
+        print('📥 =============================================');
+        
         if (blacklistResponse.isNotEmpty) {
-          await DatabaseService.syncBlacklistFromApi(blacklistResponse);
-          print(
-            "✅ Blacklist sincronizada para org: ${organizacion.organiRazonSocial}",
-          );
+          print('💾 Guardando ${blacklistResponse.length} registros en base de datos...');
+          await DatabaseService.syncBlacklistFromApi(blacklistResponse, organizacion.organiId);
+          print("✅ Blacklist sincronizada para org: ${organizacion.organiRazonSocial}");
         } else {
-          print(
-            "⚠️ Error sincronizando blacklist para org ${organizacion.organiId}: Sin datos recibidos",
-          );
+          print("⚠️ Error sincronizando blacklist para org ${organizacion.organiId}: Sin datos recibidos");
         }
       }
+      
+      // 🔍 Mostrar todas las blacklists después de sincronizar
+      print('\n🔍 ===== DEBUG: MOSTRANDO TODAS LAS BLACKLISTS =====');
+      await DatabaseService.showAllBlacklists();
+      
+      // 🔧 Forzar sincronización manual como backup
+      print('\n🔧 ===== EJECUTANDO SINCRONIZACIÓN MANUAL DE BACKUP =====');
+      await DatabaseService.debugSyncBlacklist();
+      
+      // 🧪 Probar DNIs específicos de la organización 749
+      if (user.organizaciones.any((org) => org.organiId == 749)) {
+        print('\n🧪 ===== PROBANDO DNIs ESPECÍFICOS DE ORG 749 =====');
+        await DatabaseService.testDniBlacklist('44781573', 749);
+        await DatabaseService.testDniBlacklist('44781563', 749);
+        await DatabaseService.testDniBlacklist('12345678', 749); // DNI que NO debe estar
+        print('🧪 ===============================================');
+      }
+      
     } catch (e) {
       print("❌ Error en sincronización de blacklist: $e");
       // No bloqueamos el login si falla la sincronización

@@ -227,7 +227,27 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
     await Future.delayed(const Duration(milliseconds: 500));
 
-    final bool isBlacklisted = await DatabaseService.isDniBlacklisted(dni);
+    // Obtener el organi_id actual
+    final prefs = await SharedPreferences.getInstance();
+    final organiId = prefs.getInt('organi_id') ?? 0;
+
+    print('🔍 ===== VALIDANDO DNI CONTRA BLACKLIST =====');
+    print('📋 DNI ingresado: $dni');
+    print('🏢 Organización actual: $organiId');
+
+    final bool isBlacklisted = await DatabaseService.isDniBlacklisted(dni, organiId);
+
+    print('⚖️ Resultado validación: ${isBlacklisted ? 'BLOQUEADO ❌' : 'PERMITIDO ✅'}');
+    
+    if (isBlacklisted) {
+      print('🚫 DNI $dni está en la blacklist de la organización $organiId');
+      print('🔴 Se mostrará indicador rojo al usuario');
+    } else {
+      print('✅ DNI $dni NO está en la blacklist de la organización $organiId');
+      print('🟢 Usuario puede continuar con el registro');
+    }
+    
+    print('🔍 ========================================');
 
     setState(() {
       _isBlacklisted = isBlacklisted;
@@ -325,6 +345,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     final organiId = prefs.getInt('organi_id') ?? 0;
+    
+    print('💾 ===== GUARDANDO REGISTRO =====');
+    print('📋 DNI: ${_dniCtrl.text}');
+    print('👤 Nombre: ${_nombreCtrl.text} ${_apellidoPaternoCtrl.text}');
+    print('🏢 Organi_ID desde SharedPreferences: $organiId');
+    print('💾 ===============================');
+    
     final id = await DatabaseService.insertPerson({
       'nombre': _nombreCtrl.text,
       'apellidoPaterno': _apellidoPaternoCtrl.text,
@@ -724,7 +751,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     children: [
                       Text(
                         _dniDuplicado
-                            ? "Registrar candidato"
+                            ? "DNI ya registrado"
                             : "Registrar Candidato",
                         style: TextStyle(color: Colors.white, fontSize: 16),
                       ),

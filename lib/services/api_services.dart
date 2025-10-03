@@ -13,6 +13,13 @@ class ApiService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final authToken = prefs.getString('auth_token') ?? '';
+    
+    print('🔍 ===== DEBUG ENVÍO API =====');
+    print('📋 Document: $document');
+    print('🏢 Organi ID: $id');
+    print('📱 Móvil: $movil');
+    print('🔑 Token: ${authToken.isNotEmpty ? "Presente (${authToken.length} chars)" : "VACÍO"}');
+    
     final url = Uri.parse('$baseUrl/web_services/verify-document');
     final body = {
       'document': document,
@@ -21,9 +28,9 @@ class ApiService {
       'photo_front': photoFrontBase64,
       'photo_reverse': photoReverseBase64,
     };
-    print('🔗 URL Registro Persona: $url');
-    print('📦 Body enviado: ${jsonEncode(body)}');
-    print('🔑 Token enviado en header: $authToken');
+    print('🔗 URL: $url');
+    print('📦 Body: ${jsonEncode(body)}');
+    print('� ============================');
     try {
       final response = await http
           .post(
@@ -100,10 +107,15 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('🗃️ Decoded data: $data');
-        if (data['success'] == true && data['blacklisted'] is List) {
-          print(
-            '✅ Blacklist recibida (${data['blacklisted'].length} registros)',
-          );
+        
+        // Verificar si la respuesta es directamente un array
+        if (data is List) {
+          print('✅ Respuesta directa como array (${data.length} registros)');
+          return List<Map<String, dynamic>>.from(data);
+        }
+        // O si viene en formato con success y blacklisted
+        else if (data['success'] == true && data['blacklisted'] is List) {
+          print('✅ Blacklist en formato success/blacklisted (${data['blacklisted'].length} registros)');
           return List<Map<String, dynamic>>.from(data['blacklisted']);
         } else {
           print('⚠️ Respuesta sin blacklist válida: $data');

@@ -2,9 +2,9 @@ import 'package:lacalera/services/database_services.dart';
 
 class VerificationService {
   // Verificar si un DNI está en blacklist
-  static Future<Map<String, dynamic>> verifyDni(String dni) async {
+  static Future<Map<String, dynamic>> verifyDni(String dni, int organiId) async {
     try {
-      final result = await DatabaseService.checkDniInBlacklist(dni);
+      final result = await DatabaseService.checkDniInBlacklist(dni, organiId);
       
       if (result['isBlacklisted'] == true) {
         final blacklistData = result['data'];

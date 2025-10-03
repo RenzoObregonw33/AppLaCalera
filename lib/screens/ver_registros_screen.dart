@@ -32,18 +32,35 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   Future<void> _loadUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('user_data');
-
-      if (userJson != null) {
-        final userData = jsonDecode(userJson);
-        if (userData['organizaciones'] != null &&
-            userData['organizaciones'].isNotEmpty) {
-          setState(() {
-            _organiId = userData['organizaciones'][0]['organi_id'] ?? 0;
-          });
-          await prefs.setInt('organi_id', _organiId);
+      
+      // 🎯 PRIORIZAR EL organi_id YA SELECCIONADO
+      final organiIdSeleccionado = prefs.getInt('organi_id');
+      
+      print('🔍 ===== CARGANDO DATOS USUARIO =====');
+      print('🏢 Organi_ID ya seleccionado: $organiIdSeleccionado');
+      
+      if (organiIdSeleccionado != null && organiIdSeleccionado != 0) {
+        // Si ya hay una organización seleccionada, usarla
+        setState(() {
+          _organiId = organiIdSeleccionado;
+        });
+        print('✅ Usando organi_id seleccionado: $_organiId');
+      } else {
+        // Solo si no hay organización seleccionada, usar la primera
+        final userJson = prefs.getString('user_data');
+        if (userJson != null) {
+          final userData = jsonDecode(userJson);
+          if (userData['organizaciones'] != null &&
+              userData['organizaciones'].isNotEmpty) {
+            setState(() {
+              _organiId = userData['organizaciones'][0]['organi_id'] ?? 0;
+            });
+            await prefs.setInt('organi_id', _organiId);
+            print('⚠️ No había organi_id seleccionado, usando el primero: $_organiId');
+          }
         }
       }
+      print('🔍 ===================================');
     } catch (e) {
       print("❌ Error cargando datos de usuario: $e");
     }
@@ -164,7 +181,25 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
           print('❌ Error leyendo fotos: $e');
         }
 
-        int idOrg = registro['organi_id'] ?? _organiId;
+        // 🎯 USAR SIEMPRE LA ORGANIZACIÓN ACTUALMENTE SELECCIONADA
+        int idOrg = _organiId; // No usar el del registro, sino el actual
+
+        print('📤 ===== ENVIANDO REGISTRO A API =====');
+        print('📋 DNI: ${registro['dni']}');
+        print('👤 Nombres: ${registro['nombres']}');
+        print('👤 Apellidos: ${registro['apellidos']}');
+        print('📱 Teléfono: ${registro['telefono']}');
+        print('📧 Email: ${registro['email']}');
+        print('🏠 Dirección: ${registro['direccion']}');
+        print('� ID del registro: ${registro['id']}');
+        print('�🏢 Organi_ID del registro (IGNORADO): ${registro['organi_id']}');
+        print('🏢 Organi_ID del usuario actual (USADO): $_organiId');
+        print('🎯 ID final a enviar: $idOrg');
+        print('📷 Foto frontal: ${fotoFrontBase64 != null ? 'SÍ (${fotoFrontBase64.length} caracteres)' : 'NO'}');
+        print('📷 Foto reverso: ${fotoReverseBase64 != null ? 'SÍ (${fotoReverseBase64.length} caracteres)' : 'NO'}');
+        print('🗓️ Fecha creación: ${registro['fechaCreacion']}');
+        print('✅ Enviado anteriormente: ${registro['enviadaNube'] == 1 ? 'SÍ' : 'NO'}');
+        print('📤 ====================================');
 
         final response = await ApiService.sendPersonToApi(
           document: registro['dni'] ?? '',
@@ -174,11 +209,19 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
           photoReverseBase64: fotoReverseBase64,
         );
 
+        print('📥 ===== RESPUESTA DE LA API =====');
+        print('✅ Success: ${response['success']}');
+        print('📄 Response completa: $response');
+        print('📥 ===============================');
+
         if (response['success'] == true) {
           enviados++;
+          print('✅ Marcando registro ${registro['id']} como enviado');
           await DatabaseService.marcarEnviado(registro['id']);
         } else {
           errores++;
+          print('❌ Error enviando registro ${registro['dni']}: ${response['message'] ?? 'Error desconocido'}');
+          mensajesError.add('${registro['dni']}: ${response['message'] ?? 'Error desconocido'}');
         }
       }
     }
@@ -207,16 +250,52 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       _isLoading = true;
     });
 
+    print('🔄 ===== CARGANDO REGISTROS DESDE BASE DE DATOS =====');
+    print('🏢 OrganiId actual: $_organiId');
+    
     final List<Map<String, dynamic>> registros =
         await DatabaseService.getPeople();
+    
+    print('📊 ===== DATOS CARGADOS =====');
+    print('📍 Total de registros encontrados: ${registros.length}');
+    
+    // Mostrar cada registro en detalle
+    for (int i = 0; i < registros.length; i++) {
+      final registro = registros[i];
+      print('📋 Registro ${i + 1}:');
+      print('   ID: ${registro['id']}');
+      print('   DNI: ${registro['dni']}');
+      print('   Nombres: ${registro['nombres']}');
+      print('   Apellidos: ${registro['apellidos']}');
+      print('   Teléfono: ${registro['telefono']}');
+      print('   Email: ${registro['email']}');
+      print('   Dirección: ${registro['direccion']}');
+      print('   OrganiId: ${registro['organi_id']}');
+      print('   Enviado a la nube: ${registro['enviadaNube'] == 1 ? 'SÍ' : 'NO'}');
+      print('   Fecha creación: ${registro['fechaCreacion']}');
+      print('   Imagen: ${registro['rutaImagen'] != null ? 'SÍ tiene imagen' : 'NO tiene imagen'}');
+      print('   ________________');
+    }
+    
+    // Filtrar por organización actual
+    final registrosFiltrados = registros.where((registro) => 
+      registro['organi_id'] == _organiId
+    ).toList();
+    
+    print('🎯 ===== REGISTROS FILTRADOS POR ORGANIZACIÓN =====');
+    print('🏢 Mostrando solo registros de organización: $_organiId');
+    print('📊 Registros de esta organización: ${registrosFiltrados.length}');
+    
     setState(() {
-      _registros = registros;
-      _seleccionadosFaltanEnviar = List<bool>.filled(registros.length, false);
-      _seleccionadosYaEnviados = List<bool>.filled(registros.length, false);
+      _registros = registrosFiltrados;
+      _seleccionadosFaltanEnviar = List<bool>.filled(registrosFiltrados.length, false);
+      _seleccionadosYaEnviados = List<bool>.filled(registrosFiltrados.length, false);
       _seleccionarTodosFaltanEnviar = false;
       _seleccionarTodosYaEnviados = false;
       _isLoading = false;
     });
+    
+    print('✅ Registros cargados y estado actualizado');
   }
 
   void _seleccionarTodosRegistros(bool? value) {
