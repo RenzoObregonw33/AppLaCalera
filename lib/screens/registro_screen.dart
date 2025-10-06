@@ -6,10 +6,8 @@ import 'package:lacalera/screens/barcode_scanner_screen.dart';
 import 'package:lacalera/screens/ver_registros_screen.dart';
 import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite/sqflite.dart';
 //import 'package:lacalera/screens/blacklist_screen.dart';
 
 class Country {
@@ -37,24 +35,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
   bool _dniDuplicado = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Botón temporal para borrar la base de datos
-  Future<void> _resetDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final file = File(p.join(dbPath, 'personas.db'));
-    if (await file.exists()) {
-      await file.delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Base de datos eliminada. Reinicia la app.'),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se encontró la base de datos.')),
-      );
-    }
-  }
-
   final _formKey = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
@@ -70,7 +50,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
   Future<void> _verificarDniDuplicado() async {
     final dni = _dniCtrl.text.trim();
     if (dni.length == 8) {
-      final existe = await DatabaseService.dniExiste(dni);
+      final prefs = await SharedPreferences.getInstance();
+      final organiId = prefs.getInt('organi_id') ?? 0;
+      final existe = await DatabaseService.dniExiste(dni, organiId: organiId);
       if (existe && (_ultimoDniDuplicado != dni)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -183,7 +165,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
   // Función para escanear el código de barras
   Future<void> _escanearCodigoBarras() async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => BarcodeScannerScreen(
@@ -235,10 +217,15 @@ class _RegistroScreenState extends State<RegistroScreen> {
     print('📋 DNI ingresado: $dni');
     print('🏢 Organización actual: $organiId');
 
-    final bool isBlacklisted = await DatabaseService.isDniBlacklisted(dni, organiId);
+    final bool isBlacklisted = await DatabaseService.isDniBlacklisted(
+      dni,
+      organiId,
+    );
 
-    print('⚖️ Resultado validación: ${isBlacklisted ? 'BLOQUEADO ❌' : 'PERMITIDO ✅'}');
-    
+    print(
+      '⚖️ Resultado validación: ${isBlacklisted ? 'BLOQUEADO ❌' : 'PERMITIDO ✅'}',
+    );
+
     if (isBlacklisted) {
       print('🚫 DNI $dni está en la blacklist de la organización $organiId');
       print('🔴 Se mostrará indicador rojo al usuario');
@@ -246,7 +233,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       print('✅ DNI $dni NO está en la blacklist de la organización $organiId');
       print('🟢 Usuario puede continuar con el registro');
     }
-    
+
     print('🔍 ========================================');
 
     setState(() {
@@ -256,13 +243,50 @@ class _RegistroScreenState extends State<RegistroScreen> {
   }
 
   Future<File?> _tomarFoto(String tipo) async {
-    final XFile? foto = await _picker.pickImage(source: ImageSource.camera);
-    if (foto == null) return null;
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath =
-        '${directory.path}/${DateTime.now().millisecondsSinceEpoch}_$tipo.jpg';
-    final file = await File(foto.path).copy(filePath);
-    return file;
+    try {
+      final XFile? foto = await _picker.pickImage(source: ImageSource.camera);
+      if (foto == null) return null;
+
+      // Obtener directorio de documentos de la app
+      final directory = await getApplicationDocumentsDirectory();
+
+      // Crear subdirectorio para fotos si no existe
+      final fotosDir = Directory('${directory.path}/fotos');
+      if (!await fotosDir.exists()) {
+        await fotosDir.create(recursive: true);
+        print("📁 Directorio de fotos creado: ${fotosDir.path}");
+      }
+
+      // Crear nombre único para el archivo
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '${timestamp}_$tipo.jpg';
+      final filePath = '${fotosDir.path}/$fileName';
+
+      print("📸 Copiando foto desde: ${foto.path}");
+      print("📁 Hacia: $filePath");
+
+      // Verificar que el archivo fuente existe
+      final sourceFile = File(foto.path);
+      if (!await sourceFile.exists()) {
+        print("❌ Archivo fuente no existe: ${foto.path}");
+        return null;
+      }
+
+      // Copiar el archivo
+      final file = await sourceFile.copy(filePath);
+      print("✅ Foto guardada exitosamente: $filePath");
+
+      return file;
+    } catch (e) {
+      print("❌ Error al tomar foto: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error al guardar la foto: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
   }
 
   // Función para tomar foto del frente del DNI
@@ -299,15 +323,61 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
   Future<void> _guardarRegistro() async {
     print("👉 Entró a _guardarRegistro()");
-    if (!_formKey.currentState!.validate() ||
-        _fotoDniFrente == null ||
-        _fotoDniReverso == null) {
+
+    // Validar campos del formulario
+    if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Completa todos los campos y fotos")),
+        const SnackBar(content: Text("Completa todos los campos obligatorios")),
       );
       return;
     }
+
+    // Validar que existan las fotos
+    if (_fotoDniFrente == null || _fotoDniReverso == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Debes tomar las fotos del DNI (frente y reverso)"),
+        ),
+      );
+      return;
+    }
+
+    // Verificar que los archivos de fotos existan físicamente
+    if (!await File(_fotoDniFrente!.path).exists()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Error: La foto del frente del DNI no se guardó correctamente. Inténtelo de nuevo.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() {
+        _fotoDniFrente =
+            null; // Resetear para que el usuario tome la foto de nuevo
+      });
+      return;
+    }
+
+    if (!await File(_fotoDniReverso!.path).exists()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Error: La foto del reverso del DNI no se guardó correctamente. Inténtelo de nuevo.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() {
+        _fotoDniReverso =
+            null; // Resetear para que el usuario tome la foto de nuevo
+      });
+      return;
+    }
+
     print("✅ Pasó validación, guardando en DB...");
+    print("📸 Foto frente existe: ${_fotoDniFrente!.path}");
+    print("📸 Foto reverso existe: ${_fotoDniReverso!.path}");
 
     if (_isBlacklisted) {
       final confirmar = await showDialog<bool>(
@@ -345,44 +415,63 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     final organiId = prefs.getInt('organi_id') ?? 0;
-    
+
     print('💾 ===== GUARDANDO REGISTRO =====');
     print('📋 DNI: ${_dniCtrl.text}');
     print('👤 Nombre: ${_nombreCtrl.text} ${_apellidoPaternoCtrl.text}');
     print('🏢 Organi_ID desde SharedPreferences: $organiId');
     print('💾 ===============================');
-    
-    final id = await DatabaseService.insertPerson({
-      'nombre': _nombreCtrl.text,
-      'apellidoPaterno': _apellidoPaternoCtrl.text,
-      'dni': _dniCtrl.text,
-      'telefono': telefonoCompleto,
-      'modeloContrato': _selectedModeloContrato,
-      'fotoDniFrente': _fotoDniFrente!.path,
-      'fotoDniReverso': _fotoDniReverso!.path,
-      'isBlacklisted': _isBlacklisted ? 1 : 0,
-      'organi_id': organiId,
-    }, context);
 
-    if (id != 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Registro guardado ✅")));
+    try {
+      final id = await DatabaseService.insertPerson({
+        'nombre': _nombreCtrl.text,
+        'apellidoPaterno': _apellidoPaternoCtrl.text,
+        'dni': _dniCtrl.text,
+        'telefono': telefonoCompleto,
+        'modeloContrato': _selectedModeloContrato,
+        'fotoDniFrente': _fotoDniFrente!.path,
+        'fotoDniReverso': _fotoDniReverso!.path,
+        'isBlacklisted': _isBlacklisted ? 1 : 0,
+        'organi_id': organiId,
+      }, context);
+
+      if (id != 0) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Registro guardado ✅")));
+
+        // Limpiar formulario solo si el guardado fue exitoso
+        _nombreCtrl.clear();
+        _apellidoPaternoCtrl.clear();
+        _dniCtrl.clear();
+        _telefonoCtrl.clear();
+        setState(() {
+          _fotoDniFrente = null;
+          _fotoDniReverso = null;
+          _selectedModeloContrato = 'Colaborador';
+          _selectedCountry = _countries.firstWhere(
+            (c) => c.code == 'PE',
+          ); // Volver a Perú por defecto
+          _isBlacklisted = false;
+          _dniDuplicado = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Error al guardar el registro"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print("❌ Error al guardar registro: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error al guardar el registro: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-
-    _nombreCtrl.clear();
-    _apellidoPaternoCtrl.clear();
-    _dniCtrl.clear();
-    _telefonoCtrl.clear();
-    setState(() {
-      _fotoDniFrente = null;
-      _fotoDniReverso = null;
-      _selectedModeloContrato = 'Colaborador';
-      _selectedCountry = _countries.firstWhere(
-        (c) => c.code == 'PE',
-      ); // Volver a Perú por defecto
-      _isBlacklisted = false;
-    });
   }
 
   void _verRegistros() {
@@ -429,8 +518,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
     Navigator.of(context, rootNavigator: true).pop();
 
     if (response['success'] == true && response['blacklisted'] != null) {
+      // Obtener organiId actual
+      final prefs = await SharedPreferences.getInstance();
+      final organiId = prefs.getInt('organi_id') ?? 0;
       // Actualiza la blacklist local
-      await DatabaseService.updateBlacklist(response['blacklisted']);
+      await DatabaseService.updateBlacklist(
+        response['blacklisted'],
+        organiId: organiId,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Se ha sincronizado correctamente'),

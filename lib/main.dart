@@ -1,6 +1,5 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:lacalera/services/database_services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lacalera/screens/login_screen.dart';
 import 'package:lacalera/screens/home_screen.dart';
@@ -10,7 +9,7 @@ import 'dart:convert';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await DatabaseService.initializeDatabase();
+  // Ya no necesitamos inicializar la BD aquí, se hace por organización
 
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('auth_token');
@@ -76,10 +75,7 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           focusedErrorBorder: OutlineInputBorder(
-            borderSide: const BorderSide(
-              color: Colors.red,
-              width: 2.0,
-            ),
+            borderSide: const BorderSide(color: Colors.red, width: 2.0),
             borderRadius: BorderRadius.circular(12),
           ),
           labelStyle: const TextStyle(color: Colors.grey),
