@@ -77,35 +77,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        // SELECTOR DE ORGANIZACIÓN A LA DERECHA
-        actions: [
-          if (user.organizaciones.length > 1)
-            PopupMenuButton<int>(
-              icon: const Icon(Icons.business, color: Colors.white),
-              onSelected: (organiId) async {
-                await DatabaseService.switchToOrganization(organiId);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Cambiado a organización $organiId'),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-              itemBuilder: (context) => user.organizaciones
-                  .map(
-                    (org) => PopupMenuItem<int>(
-                      value: org.organiId,
-                      child: Text(
-                        '${org.organiRazonSocial} (ID: ${org.organiId})',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              tooltip: 'Cambiar organización',
-            ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -223,25 +194,8 @@ class HomeScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     onTap: () async {
                       // Guarda el organi_id seleccionado en SharedPreferences
-                      print('🏢 ===== SELECCIÓN DE ORGANIZACIÓN =====');
-                      print(
-                        '👤 Usuario: ${user.persoNombre} ${user.persoApPaterno}',
-                      );
-                      print('📧 Email: ${user.email}');
-                      print(
-                        '🏢 Organizaciones disponibles: ${user.organizaciones.length}',
-                      );
-                      print('🎯 Organización seleccionada:');
-                      print('   ID: ${org.organiId}');
-                      print('   Nombre: ${org.organiRazonSocial}');
-                      print('🏢 =====================================');
-
                       final prefs = await SharedPreferences.getInstance();
                       await prefs.setInt('organi_id', org.organiId);
-
-                      print(
-                        '💾 Organi_ID guardado en SharedPreferences: ${org.organiId}',
-                      );
 
                       Navigator.push(
                         context,

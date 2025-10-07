@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  /// Enviar datos de personas a la API
   static Future<Map<String, dynamic>> sendPersonToApi({
     required String document,
     required int id,
@@ -13,13 +12,7 @@ class ApiService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final authToken = prefs.getString('auth_token') ?? '';
-    
-    print('🔍 ===== DEBUG ENVÍO API =====');
-    print('📋 Document: $document');
-    print('🏢 Organi ID: $id');
-    print('📱 Móvil: $movil');
-    print('🔑 Token: ${authToken.isNotEmpty ? "Presente (${authToken.length} chars)" : "VACÍO"}');
-    
+
     final url = Uri.parse('$baseUrl/web_services/verify-document');
     final body = {
       'document': document,
@@ -28,9 +21,7 @@ class ApiService {
       'photo_front': photoFrontBase64,
       'photo_reverse': photoReverseBase64,
     };
-    print('🔗 URL: $url');
-    print('📦 Body: ${jsonEncode(body)}');
-    print('� ============================');
+
     try {
       final response = await http
           .post(
@@ -43,8 +34,7 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 30));
-      print('📬 Status code: ${response.statusCode}');
-      print('📩 Respuesta body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return {
@@ -58,8 +48,6 @@ class ApiService {
         };
       }
     } catch (e) {
-      print('❌ Error al enviar persona a API: $e');
-      
       // Manejo específico de errores comunes en dispositivos reales
       String errorMessage = 'Error de conexión';
       if (e.toString().contains('TimeoutException')) {
@@ -71,7 +59,7 @@ class ApiService {
       } else if (e.toString().contains('FormatException')) {
         errorMessage = 'Error en formato de respuesta del servidor';
       }
-      
+
       return {'success': false, 'message': errorMessage};
     }
   }
@@ -82,12 +70,6 @@ class ApiService {
     String? token,
   }) async {
     final url = Uri.parse('$baseUrl/web_services/black-list');
-    print('🔗 URL Blacklist: $url');
-    print('🔑 Token recibido en API: $token');
-    print(
-      '📝 Header Authorization: ${token != null && token.isNotEmpty ? token : 'NO TOKEN'}',
-    );
-    print('📦 Body enviado: ${jsonEncode({'id': organiId})}');
     try {
       final response = await http
           .post(
@@ -101,31 +83,20 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 30));
 
-      print('📬 Status code: ${response.statusCode}');
-      print('📩 Respuesta body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('🗃️ Decoded data: $data');
-        
+
         // Verificar si la respuesta es directamente un array
         if (data is List) {
-          print('✅ Respuesta directa como array (${data.length} registros)');
           return List<Map<String, dynamic>>.from(data);
         }
         // O si viene en formato con success y blacklisted
         else if (data['success'] == true && data['blacklisted'] is List) {
-          print('✅ Blacklist en formato success/blacklisted (${data['blacklisted'].length} registros)');
           return List<Map<String, dynamic>>.from(data['blacklisted']);
-        } else {
-          print('⚠️ Respuesta sin blacklist válida: $data');
         }
-      } else {
-        print('❌ Status code no es 200: ${response.statusCode}');
       }
       return [];
     } catch (e) {
-      print('❌ Error al obtener blacklist de API: $e');
       return [];
     }
   }
@@ -148,8 +119,6 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
 
-      print("📩 Respuesta cruda: ${response.body}");
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
@@ -159,9 +128,11 @@ class ApiService {
         final token = data['token'];
         if (token != null) {
           await prefs.setString('auth_token', token);
-          print('🔑 Token guardado en prefs: $token');
         } else {
-          print('⚠️ No se recibió token en el login');
+          return {
+            'success': false,
+            'message': 'No se recibió token en el login',
+          };
         }
         // Guardar fecha/hora de login (en milisegundos)
         await prefs.setInt('login_time', DateTime.now().millisecondsSinceEpoch);
@@ -194,7 +165,10 @@ class ApiService {
         };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Ups, revisa tu conexión a internet'};
+      return {
+        'success': false,
+        'message': 'Ups, revisa tu conexión a internet',
+      };
     }
   }
 
@@ -214,8 +188,6 @@ class ApiService {
             body: jsonEncode({'id': organiId}),
           )
           .timeout(const Duration(seconds: 10));
-
-      print("📡 Respuesta Blacklist API: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -255,10 +227,6 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
 
-      // Imprime el código de estado y el cuerpo de la respuesta para depuración
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-
       // Si el correo fue enviado correctamente (200 OK)
       if (response.statusCode == 200) {
         return {'success': true, 'message': 'Correo enviado correctamente'};
@@ -285,7 +253,10 @@ class ApiService {
       }
     } catch (e) {
       // Manejo de errores de conexión o tiempo de espera
-      return {'success': false, 'message': 'Ups, revisa tu conexión a internet'};
+      return {
+        'success': false,
+        'message': 'Ups, revisa tu conexión a internet',
+      };
     }
   }
 }

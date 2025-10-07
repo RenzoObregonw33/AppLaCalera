@@ -32,13 +32,13 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   Future<void> _loadUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // 🎯 PRIORIZAR EL organi_id YA SELECCIONADO
       final organiIdSeleccionado = prefs.getInt('organi_id');
-      
+
       print('🔍 ===== CARGANDO DATOS USUARIO =====');
       print('🏢 Organi_ID ya seleccionado: $organiIdSeleccionado');
-      
+
       if (organiIdSeleccionado != null && organiIdSeleccionado != 0) {
         // Si ya hay una organización seleccionada, usarla
         setState(() {
@@ -56,7 +56,9 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
               _organiId = userData['organizaciones'][0]['organi_id'] ?? 0;
             });
             await prefs.setInt('organi_id', _organiId);
-            print('⚠️ No había organi_id seleccionado, usando el primero: $_organiId');
+            print(
+              '⚠️ No había organi_id seleccionado, usando el primero: $_organiId',
+            );
           }
         }
       }
@@ -93,7 +95,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Seleccione al menos un registro para enviar'),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.black,
         ),
       );
       return;
@@ -131,47 +133,59 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
           if (registro['fotoDniFrente'] != null &&
               registro['fotoDniFrente'].toString().isNotEmpty) {
             final file = File(registro['fotoDniFrente']);
-            
+
             // Verificar que el archivo existe
             if (!await file.exists()) {
-              print('❌ Archivo de foto frontal no existe: ${registro['fotoDniFrente']}');
+              print(
+                '❌ Archivo de foto frontal no existe: ${registro['fotoDniFrente']}',
+              );
               errores++;
-              mensajesError.add('${registro['dni']}: Foto frontal no encontrada');
+              mensajesError.add(
+                '${registro['dni']}: Foto frontal no encontrada',
+              );
               continue;
             }
-            
+
             final bytes = await file.readAsBytes();
-            
+
             // Validar tamaño de imagen (máximo 2MB)
             if (bytes.length > 2 * 1024 * 1024) {
               print('⚠️ Imagen frente muy grande: ${bytes.length} bytes');
               // Crear una versión más pequeña
-              final smallerBytes = bytes.take(1024 * 1024).toList(); // Limitar a 1MB
+              final smallerBytes = bytes
+                  .take(1024 * 1024)
+                  .toList(); // Limitar a 1MB
               fotoFrontBase64 = base64Encode(smallerBytes);
             } else {
               fotoFrontBase64 = base64Encode(bytes);
             }
           }
-          
+
           if (registro['fotoDniReverso'] != null &&
               registro['fotoDniReverso'].toString().isNotEmpty) {
             final file = File(registro['fotoDniReverso']);
-            
+
             // Verificar que el archivo existe
             if (!await file.exists()) {
-              print('❌ Archivo de foto reverso no existe: ${registro['fotoDniReverso']}');
+              print(
+                '❌ Archivo de foto reverso no existe: ${registro['fotoDniReverso']}',
+              );
               errores++;
-              mensajesError.add('${registro['dni']}: Foto reverso no encontrada');
+              mensajesError.add(
+                '${registro['dni']}: Foto reverso no encontrada',
+              );
               continue;
             }
-            
+
             final bytes = await file.readAsBytes();
-            
+
             // Validar tamaño de imagen (máximo 2MB)
             if (bytes.length > 2 * 1024 * 1024) {
               print('⚠️ Imagen reverso muy grande: ${bytes.length} bytes');
               // Crear una versión más pequeña
-              final smallerBytes = bytes.take(1024 * 1024).toList(); // Limitar a 1MB
+              final smallerBytes = bytes
+                  .take(1024 * 1024)
+                  .toList(); // Limitar a 1MB
               fotoReverseBase64 = base64Encode(smallerBytes);
             } else {
               fotoReverseBase64 = base64Encode(bytes);
@@ -192,13 +206,21 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         print('📧 Email: ${registro['email']}');
         print('🏠 Dirección: ${registro['direccion']}');
         print('� ID del registro: ${registro['id']}');
-        print('�🏢 Organi_ID del registro (IGNORADO): ${registro['organi_id']}');
+        print(
+          '�🏢 Organi_ID del registro (IGNORADO): ${registro['organi_id']}',
+        );
         print('🏢 Organi_ID del usuario actual (USADO): $_organiId');
         print('🎯 ID final a enviar: $idOrg');
-        print('📷 Foto frontal: ${fotoFrontBase64 != null ? 'SÍ (${fotoFrontBase64.length} caracteres)' : 'NO'}');
-        print('📷 Foto reverso: ${fotoReverseBase64 != null ? 'SÍ (${fotoReverseBase64.length} caracteres)' : 'NO'}');
+        print(
+          '📷 Foto frontal: ${fotoFrontBase64 != null ? 'SÍ (${fotoFrontBase64.length} caracteres)' : 'NO'}',
+        );
+        print(
+          '📷 Foto reverso: ${fotoReverseBase64 != null ? 'SÍ (${fotoReverseBase64.length} caracteres)' : 'NO'}',
+        );
         print('🗓️ Fecha creación: ${registro['fechaCreacion']}');
-        print('✅ Enviado anteriormente: ${registro['enviadaNube'] == 1 ? 'SÍ' : 'NO'}');
+        print(
+          '✅ Enviado anteriormente: ${registro['enviadaNube'] == 1 ? 'SÍ' : 'NO'}',
+        );
         print('📤 ====================================');
 
         final response = await ApiService.sendPersonToApi(
@@ -220,8 +242,12 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
           await DatabaseService.marcarEnviado(registro['id']);
         } else {
           errores++;
-          print('❌ Error enviando registro ${registro['dni']}: ${response['message'] ?? 'Error desconocido'}');
-          mensajesError.add('${registro['dni']}: ${response['message'] ?? 'Error desconocido'}');
+          print(
+            '❌ Error enviando registro ${registro['dni']}: ${response['message'] ?? 'Error desconocido'}',
+          );
+          mensajesError.add(
+            '${registro['dni']}: ${response['message'] ?? 'Error desconocido'}',
+          );
         }
       }
     }
@@ -235,12 +261,14 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       SnackBar(
         content: Text(
           enviados > 0
-              ? 'Se enviaron los datos correctamente'
+              ? errores > 0
+                    ? 'Se enviaron $enviados registros. $errores con errores.'
+                    : 'Se enviaron los datos correctamente'
               : 'No se enviaron los datos',
           style: const TextStyle(fontSize: 14),
         ),
         backgroundColor: enviados > 0 ? Colors.green : Colors.red,
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -252,13 +280,13 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
 
     print('🔄 ===== CARGANDO REGISTROS DESDE BASE DE DATOS =====');
     print('🏢 OrganiId actual: $_organiId');
-    
+
     final List<Map<String, dynamic>> registros =
         await DatabaseService.getPeople();
-    
+
     print('📊 ===== DATOS CARGADOS =====');
     print('📍 Total de registros encontrados: ${registros.length}');
-    
+
     // Mostrar cada registro en detalle
     for (int i = 0; i < registros.length; i++) {
       final registro = registros[i];
@@ -271,30 +299,40 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
       print('   Email: ${registro['email']}');
       print('   Dirección: ${registro['direccion']}');
       print('   OrganiId: ${registro['organi_id']}');
-      print('   Enviado a la nube: ${registro['enviadaNube'] == 1 ? 'SÍ' : 'NO'}');
+      print(
+        '   Enviado a la nube: ${registro['enviadaNube'] == 1 ? 'SÍ' : 'NO'}',
+      );
       print('   Fecha creación: ${registro['fechaCreacion']}');
-      print('   Imagen: ${registro['rutaImagen'] != null ? 'SÍ tiene imagen' : 'NO tiene imagen'}');
+      print(
+        '   Imagen: ${registro['rutaImagen'] != null ? 'SÍ tiene imagen' : 'NO tiene imagen'}',
+      );
       print('   ________________');
     }
-    
+
     // Filtrar por organización actual
-    final registrosFiltrados = registros.where((registro) => 
-      registro['organi_id'] == _organiId
-    ).toList();
-    
+    final registrosFiltrados = registros
+        .where((registro) => registro['organi_id'] == _organiId)
+        .toList();
+
     print('🎯 ===== REGISTROS FILTRADOS POR ORGANIZACIÓN =====');
     print('🏢 Mostrando solo registros de organización: $_organiId');
     print('📊 Registros de esta organización: ${registrosFiltrados.length}');
-    
+
     setState(() {
       _registros = registrosFiltrados;
-      _seleccionadosFaltanEnviar = List<bool>.filled(registrosFiltrados.length, false);
-      _seleccionadosYaEnviados = List<bool>.filled(registrosFiltrados.length, false);
+      _seleccionadosFaltanEnviar = List<bool>.filled(
+        registrosFiltrados.length,
+        false,
+      );
+      _seleccionadosYaEnviados = List<bool>.filled(
+        registrosFiltrados.length,
+        false,
+      );
       _seleccionarTodosFaltanEnviar = false;
       _seleccionarTodosYaEnviados = false;
       _isLoading = false;
     });
-    
+
     print('✅ Registros cargados y estado actualizado');
   }
 
@@ -725,10 +763,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Candidatos',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Candidatos', style: TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,

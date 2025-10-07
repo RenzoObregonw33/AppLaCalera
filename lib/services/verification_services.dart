@@ -2,29 +2,26 @@ import 'package:lacalera/services/database_services.dart';
 
 class VerificationService {
   // Verificar si un DNI está en blacklist
-  static Future<Map<String, dynamic>> verifyDni(String dni, int organiId) async {
+  static Future<Map<String, dynamic>> verifyDni(
+    String dni,
+    int organiId,
+  ) async {
     try {
       final result = await DatabaseService.checkDniInBlacklist(dni, organiId);
-      
+
       if (result['isBlacklisted'] == true) {
         final blacklistData = result['data'];
         return {
           'isValid': false,
-          'message': '⚠️ DNI encontrado en lista negra',
+          'message': 'DNI encontrado en lista negra',
           'reason': blacklistData?['reason'] ?? 'Razón no especificada',
           'blacklistData': blacklistData,
         };
       }
-      
-      return {
-        'isValid': true,
-        'message': '✅ DNI válido',
-      };
+
+      return {'isValid': true, 'message': 'DNI válido'};
     } catch (e) {
-      return {
-        'isValid': false,
-        'message': '❌ Error verificando DNI: $e',
-      };
+      return {'isValid': false, 'message': 'Error verificando DNI: $e'};
     }
   }
 

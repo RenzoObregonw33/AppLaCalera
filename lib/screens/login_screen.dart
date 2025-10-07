@@ -5,6 +5,7 @@ import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
 import 'package:lacalera/models/user_models.dart';
 import 'package:lacalera/screens/home_screen.dart';
+import 'package:lacalera/widgets/boton_secreto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -139,6 +140,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _activarModoErrores() {
+    // El modo se activa automáticamente en el BotonSecreto
+    // Este método puede estar vacío o mostrar un mensaje adicional
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,9 +154,13 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset(
-                'assets/logorh.png', // Cambia la ruta si tu logo tiene otro nombre o carpeta
-                height: 100,
+              BotonSecreto(
+                onSecretActivated: _activarModoErrores,
+                tapCountRequired: 7,
+                child: Image.asset(
+                  'assets/logorh.png', // Cambia la ruta si tu logo tiene otro nombre o carpeta
+                  height: 100,
+                ),
               ),
               const SizedBox(height: 16),
               const Text(

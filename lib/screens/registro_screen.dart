@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lacalera/screens/barcode_scanner_screen.dart';
+import 'package:lacalera/screens/secret_screen.dart';
 import 'package:lacalera/screens/ver_registros_screen.dart';
 import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
+import 'package:lacalera/services/secret_mode_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 //import 'package:lacalera/screens/blacklist_screen.dart';
@@ -213,28 +215,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
     final prefs = await SharedPreferences.getInstance();
     final organiId = prefs.getInt('organi_id') ?? 0;
 
-    print('🔍 ===== VALIDANDO DNI CONTRA BLACKLIST =====');
-    print('📋 DNI ingresado: $dni');
-    print('🏢 Organización actual: $organiId');
-
     final bool isBlacklisted = await DatabaseService.isDniBlacklisted(
       dni,
       organiId,
     );
-
-    print(
-      '⚖️ Resultado validación: ${isBlacklisted ? 'BLOQUEADO ❌' : 'PERMITIDO ✅'}',
-    );
-
-    if (isBlacklisted) {
-      print('🚫 DNI $dni está en la blacklist de la organización $organiId');
-      print('🔴 Se mostrará indicador rojo al usuario');
-    } else {
-      print('✅ DNI $dni NO está en la blacklist de la organización $organiId');
-      print('🟢 Usuario puede continuar con el registro');
-    }
-
-    print('🔍 ========================================');
 
     setState(() {
       _isBlacklisted = isBlacklisted;
@@ -254,7 +238,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
       final fotosDir = Directory('${directory.path}/fotos');
       if (!await fotosDir.exists()) {
         await fotosDir.create(recursive: true);
-        print("📁 Directorio de fotos creado: ${fotosDir.path}");
       }
 
       // Crear nombre único para el archivo
@@ -262,23 +245,17 @@ class _RegistroScreenState extends State<RegistroScreen> {
       final fileName = '${timestamp}_$tipo.jpg';
       final filePath = '${fotosDir.path}/$fileName';
 
-      print("📸 Copiando foto desde: ${foto.path}");
-      print("📁 Hacia: $filePath");
-
       // Verificar que el archivo fuente existe
       final sourceFile = File(foto.path);
       if (!await sourceFile.exists()) {
-        print("❌ Archivo fuente no existe: ${foto.path}");
         return null;
       }
 
       // Copiar el archivo
       final file = await sourceFile.copy(filePath);
-      print("✅ Foto guardada exitosamente: $filePath");
 
       return file;
     } catch (e) {
-      print("❌ Error al tomar foto: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Error al guardar la foto: $e"),
@@ -322,8 +299,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
   }
 
   Future<void> _guardarRegistro() async {
-    print("👉 Entró a _guardarRegistro()");
-
     // Validar campos del formulario
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -375,10 +350,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
       return;
     }
 
-    print("✅ Pasó validación, guardando en DB...");
-    print("📸 Foto frente existe: ${_fotoDniFrente!.path}");
-    print("📸 Foto reverso existe: ${_fotoDniReverso!.path}");
-
     if (_isBlacklisted) {
       final confirmar = await showDialog<bool>(
         context: context,
@@ -416,12 +387,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
     final prefs = await SharedPreferences.getInstance();
     final organiId = prefs.getInt('organi_id') ?? 0;
 
-    print('💾 ===== GUARDANDO REGISTRO =====');
-    print('📋 DNI: ${_dniCtrl.text}');
-    print('👤 Nombre: ${_nombreCtrl.text} ${_apellidoPaternoCtrl.text}');
-    print('🏢 Organi_ID desde SharedPreferences: $organiId');
-    print('💾 ===============================');
-
     try {
       final id = await DatabaseService.insertPerson({
         'nombre': _nombreCtrl.text,
@@ -436,9 +401,12 @@ class _RegistroScreenState extends State<RegistroScreen> {
       }, context);
 
       if (id != 0) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Registro guardado ✅")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Registro guardado"),
+            backgroundColor: Colors.black,
+          ),
+        );
 
         // Limpiar formulario solo si el guardado fue exitoso
         _nombreCtrl.clear();
@@ -464,7 +432,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
         );
       }
     } catch (e) {
-      print("❌ Error al guardar registro: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Error al guardar el registro: $e"),
@@ -494,6 +461,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
         _isBlacklisted = false;
       });
     });
+  }
+
+  void _irAPantallaErrores() {
+    Navigator.pop(context); // Cierra el Drawer si está abierto
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SecretScreen()),
+    );
   }
 
   // Función para sincronizar la blacklist local manualmente
@@ -558,11 +533,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
-          /*IconButton(
-            icon: Icon(Icons.delete_forever, color: Colors.red),
-            onPressed: _resetDatabase,
-            tooltip: 'Borrar base de datos (solo desarrollo)',
-          ),*/
           IconButton(
             icon: const Icon(Icons.menu, color: Colors.white),
             onPressed: () => _scaffoldKey.currentState!.openDrawer(),
@@ -864,50 +834,64 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
   // Widget para construir el menú lateral (Drawer)
   Widget _buildDrawer() {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          SizedBox(
-            height: 130,
-            child: DrawerHeader(
-              decoration: const BoxDecoration(color: Color(0xFF1565C0)),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 12),
-                  Text(
-                    'Opciones',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      letterSpacing: 1.5,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black26,
-                          offset: Offset(1, 2),
-                          blurRadius: 2,
+    return ListenableBuilder(
+      listenable: SecretModeService(),
+      builder: (context, child) {
+        final secretService = SecretModeService();
+
+        return Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              SizedBox(
+                height: 130,
+                child: DrawerHeader(
+                  decoration: const BoxDecoration(color: Color(0xFF1565C0)),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      Text(
+                        'Opciones',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          letterSpacing: 1.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black26,
+                              offset: Offset(1, 2),
+                              blurRadius: 2,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+              ListTile(
+                leading: const Icon(Icons.sync, color: Color(0xFF1565C0)),
+                title: const Text('Sincronizar'),
+                onTap: _sincronizar,
+              ),
+              ListTile(
+                leading: const Icon(Icons.list_alt, color: Color(0xFF1565C0)),
+                title: const Text('Colaboradores'),
+                onTap: _verRegistros,
+              ),
+              // Mostrar opción de errores solo si el modo está activado
+              if (secretService.isErrorModeEnabled)
+                ListTile(
+                  leading: const Icon(Icons.error, color: Color(0xFF1565C0)),
+                  title: const Text('Modo Debug'),
+                  onTap: _irAPantallaErrores,
+                ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.sync, color: Color(0xFF1565C0)),
-            title: const Text('Sincronizar'),
-            onTap: _sincronizar,
-          ),
-          ListTile(
-            leading: const Icon(Icons.list_alt, color: Color(0xFF1565C0)),
-            title: const Text('Colaboradores'),
-            onTap: _verRegistros,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

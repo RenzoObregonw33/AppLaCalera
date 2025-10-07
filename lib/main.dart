@@ -23,20 +23,20 @@ void main() async {
     final hours48 = 48 * 60 * 60 * 1000; // 48 horas en milisegundos
 
     if (currentTime - loginTime < hours48) {
-      // ✅ Todavía dentro de las 48 horas
+      // Todavía dentro de las 48 horas
       if (userJson != null) {
         try {
           final user = User.fromJson(jsonDecode(userJson));
           initialScreen = HomeScreen(user: user);
         } catch (e) {
-          // ❌ Si falla el parseo, volvemos al login
+          // Si falla el parseo, volvemos al login
           await prefs.remove('auth_token');
           await prefs.remove('login_time');
           await prefs.remove('user_data');
         }
       }
     } else {
-      // ❌ Token vencido → limpiamos datos
+      // Token vencido → limpiamos datos
       await prefs.remove('auth_token');
       await prefs.remove('login_time');
       await prefs.remove('user_data');
@@ -57,11 +57,11 @@ class MyApp extends StatelessWidget {
       title: 'Lacalera App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        // 🔥 NUEVO: Configurar el tema de los TextFields
+        // Configurar el tema de los TextFields
         inputDecorationTheme: InputDecorationTheme(
           focusedBorder: OutlineInputBorder(
             borderSide: const BorderSide(
-              color: Color(0xFF1565C0), // 🔥 AZUL en lugar de morado
+              color: Color(0xFF1565C0), // Azul en lugar de morado
               width: 2.0,
             ),
             borderRadius: BorderRadius.circular(12),
