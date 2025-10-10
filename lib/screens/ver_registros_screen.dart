@@ -264,7 +264,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
               ? errores > 0
                     ? 'Se enviaron $enviados registros. $errores con errores.'
                     : 'Se enviaron los datos correctamente'
-              : 'No se enviaron los datos',
+              : 'El documento pertenece a un empleado activo de la organización',
           style: const TextStyle(fontSize: 14),
         ),
         backgroundColor: enviados > 0 ? Colors.green : Colors.red,

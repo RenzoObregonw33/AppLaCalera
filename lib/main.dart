@@ -57,6 +57,12 @@ class MyApp extends StatelessWidget {
       title: 'Lacalera App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        // 🎯 Configurar específicamente el color del cursor
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: Color(0xFF1565C0), // Color del cursor
+          selectionColor: Color(0xFF1565C0), // Color de la selección de texto
+          selectionHandleColor: Color(0xFF1565C0), // Color de los handles de selección
+        ),
         // Configurar el tema de los TextFields
         inputDecorationTheme: InputDecorationTheme(
           focusedBorder: OutlineInputBorder(

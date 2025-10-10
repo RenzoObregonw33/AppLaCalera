@@ -42,10 +42,20 @@ class ApiService {
           'message': data['message'] ?? '',
         };
       } else {
-        return {
-          'success': false,
-          'message': 'Error del servidor: ${response.statusCode}',
-        };
+        // Intentar obtener el mensaje del servidor para cualquier error HTTP
+        try {
+          final data = jsonDecode(response.body);
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Error del servidor: ${response.statusCode}',
+          };
+        } catch (e) {
+          // Si no se puede parsear la respuesta, usar mensaje por defecto
+          return {
+            'success': false,
+            'message': 'Error del servidor: ${response.statusCode}',
+          };
+        }
       }
     } catch (e) {
       // Manejo específico de errores comunes en dispositivos reales

@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,7 +9,6 @@ import 'package:lacalera/screens/ver_registros_screen.dart';
 import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
 import 'package:lacalera/services/secret_mode_service.dart';
-import 'package:lacalera/widgets/loading_dialog.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,7 +86,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isCheckingBlacklist = false;
   bool _isBlacklisted = false;
-  // Removida _isLoading ya que ahora usamos LoadingDialog
 
   // Lista de países
   final List<Country> _countries = [
@@ -319,121 +317,96 @@ class _RegistroScreenState extends State<RegistroScreen> {
       return;
     }
 
-    // 🆕 Mostrar diálogo de carga
-    LoadingDialog.mostrarRegistroCandidato(context);
+    // Verificar que los archivos de fotos existan físicamente
+    if (!await File(_fotoDniFrente!.path).exists()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Error: La foto del frente del DNI no se guardó correctamente. Inténtelo de nuevo.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() {
+        _fotoDniFrente =
+            null; // Resetear para que el usuario tome la foto de nuevo
+      });
+      return;
+    }
+
+    if (!await File(_fotoDniReverso!.path).exists()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Error: La foto del reverso del DNI no se guardó correctamente. Inténtelo de nuevo.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() {
+        _fotoDniReverso =
+            null; // Resetear para que el usuario tome la foto de nuevo
+      });
+      return;
+    }
+
+    if (_isBlacklisted) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("ADVERTENCIA"),
+          content: const Text(
+            "Este DNI está en la lista negra. ¿Está seguro de que desea guardar el registro?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancelar"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Continuar"),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) {
+        return;
+      }
+    }
+
+    // Preparar el teléfono con código de país
+    String? telefonoCompleto;
+    if (_telefonoCtrl.text.isNotEmpty) {
+      telefonoCompleto = '${_selectedCountry.dialCode} ${_telefonoCtrl.text}';
+    } else {
+      telefonoCompleto = '+51 000000000'; // Teléfono por defecto cuando está vacío
+    }
+
+    print('📞 DEBUG: Teléfono preparado: $telefonoCompleto');
+
+    final prefs = await SharedPreferences.getInstance();
+    final organiId = prefs.getInt('organi_id') ?? 0;
 
     try {
-      // Verificar que los archivos de fotos existan físicamente
-      if (!await File(_fotoDniFrente!.path).exists()) {
-        LoadingDialog.cerrar(context); // 🆕 Cerrar diálogo antes del error
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Error: La foto del frente del DNI no se guardó correctamente. Inténtelo de nuevo.",
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _fotoDniFrente =
-              null; // Resetear para que el usuario tome la foto de nuevo
-        });
-        return;
-      }
-
-      if (!await File(_fotoDniReverso!.path).exists()) {
-        LoadingDialog.cerrar(context); // 🆕 Cerrar diálogo antes del error
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Error: La foto del reverso del DNI no se guardó correctamente. Inténtelo de nuevo.",
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _fotoDniReverso =
-              null; // Resetear para que el usuario tome la foto de nuevo
-        });
-        return;
-      }
-
-      if (_isBlacklisted) {
-        LoadingDialog.cerrar(context); // 🆕 Cerrar diálogo antes del diálogo de confirmación
-        final confirmar = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("ADVERTENCIA"),
-            content: const Text(
-              "Este DNI está en la lista negra. ¿Está seguro de que desea guardar el registro?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancelar"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text("Continuar"),
-              ),
+      // Mostrar loading inicial
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF1565C0)),
+              SizedBox(height: 16),
+              Text('Guardando candidato...'),
             ],
           ),
-        );
+        ),
+      );
 
-        if (confirmar != true) {
-          return;
-        }
-        // 🆕 Reabrir el diálogo de carga si el usuario confirma continuar
-        LoadingDialog.mostrarRegistroCandidato(context);
-      }
-
-      // Preparar el teléfono con código de país
-      String? telefonoCompleto;
-      if (_telefonoCtrl.text.isNotEmpty) {
-        telefonoCompleto = '${_selectedCountry.dialCode} ${_telefonoCtrl.text}';
-      } else {
-        telefonoCompleto = null;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      final organiId = prefs.getInt('organi_id') ?? 0;
-
-      // 🎯 NUEVA LÓGICA: Intentar enviar directamente a la nube primero
-      bool enviadoALaNube = false;
-      String mensajeResultado = "";
-      
-      try {
-        // Convertir fotos a base64 para envío a API
-        String? fotoFrontBase64;
-        String? fotoReverseBase64;
-        
-        final bytesFrente = await File(_fotoDniFrente!.path).readAsBytes();
-        final bytesReverso = await File(_fotoDniReverso!.path).readAsBytes();
-        
-        fotoFrontBase64 = base64Encode(bytesFrente);
-        fotoReverseBase64 = base64Encode(bytesReverso);
-        
-        // Intentar envío a API
-        final apiResponse = await ApiService.sendPersonToApi(
-          document: _dniCtrl.text,
-          id: organiId,
-          movil: telefonoCompleto ?? '',
-          photoFrontBase64: fotoFrontBase64,
-          photoReverseBase64: fotoReverseBase64,
-        );
-        
-        if (apiResponse['success'] == true) {
-          enviadoALaNube = true;
-          mensajeResultado = "Registro enviado exitosamente";
-        } else {
-          mensajeResultado = "${apiResponse['message'] ?? 'Error desconocido'} - Guardado localmente";
-        }
-      } catch (e) {
-        mensajeResultado = "Sin conexión - Guardado localmente";
-      }
-
-      // 📝 Guardar en base de datos local (siempre)
-      final id = await DatabaseService.insertPerson({
+      final personData = {
         'nombre': _nombreCtrl.text,
         'apellidoPaterno': _apellidoPaternoCtrl.text,
         'dni': _dniCtrl.text,
@@ -443,23 +416,104 @@ class _RegistroScreenState extends State<RegistroScreen> {
         'fotoDniReverso': _fotoDniReverso!.path,
         'isBlacklisted': _isBlacklisted ? 1 : 0,
         'organi_id': organiId,
-        'enviadaNube': enviadoALaNube ? 1 : 0, // 🎯 Marcar si se envió a la nube
-      }, context);
+      };
+
+      final id = await DatabaseService.insertPerson(personData, context);
 
       if (id != 0) {
-        // 🆕 Cerrar diálogo de carga antes de mostrar el resultado
-        LoadingDialog.cerrar(context);
+        // Cerrar loading de guardado
+        Navigator.pop(context);
         
-        // Mostrar mensaje según el resultado
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(mensajeResultado),
-            backgroundColor: enviadoALaNube ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 3),
+        // Mostrar loading de envío
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Color(0xFF1565C0)),
+                SizedBox(height: 16),
+                Text('Verificando conexión...'),
+              ],
+            ),
           ),
         );
 
-        // Limpiar formulario solo si el guardado fue exitoso
+        // Intentar envío automático
+        print('🎯 DEBUG: Iniciando intento de envío automático desde _guardarRegistro');
+        print('🎯 DEBUG: ID guardado: $id, OrganiID: $organiId');
+        final resultadoEnvio = await _enviarAutomaticoALaNube(id, personData, organiId);
+        print('🎯 DEBUG: Resultado del envío automático: $resultadoEnvio');
+        
+        // Cerrar loading de envío
+        Navigator.pop(context);
+
+        if (resultadoEnvio['success'] == true) {
+          print('🎯 DEBUG: Mostrando mensaje de éxito - enviado a la nube');
+          // Enviado exitosamente a la nube
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.cloud_done, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text("✅ ${resultadoEnvio['message']}")),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else if (resultadoEnvio['isConnectionError'] == true) {
+          print('🎯 DEBUG: Mostrando mensaje de guardado local - sin conexión');
+          // Sin conexión, guardado local
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.save, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text("💾 Candidato guardado (se enviará cuando haya conexión)")),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          print('🎯 DEBUG: Mostrando mensaje de error de API - ${resultadoEnvio['message']}');
+          // Error de la API (como 403)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text("❌ ${resultadoEnvio['message']}")),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.save, color: Colors.white),
+                  SizedBox(width: 8),
+                  Expanded(child: Text("💾 Candidato guardado (se enviará cuando haya conexión)")),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+
+        // Limpiar formulario en ambos casos
         _nombreCtrl.clear();
         _apellidoPaternoCtrl.clear();
         _dniCtrl.clear();
@@ -475,28 +529,172 @@ class _RegistroScreenState extends State<RegistroScreen> {
           _dniDuplicado = false;
         });
       } else {
-        // 🆕 Cerrar diálogo de carga antes de mostrar el error
-        LoadingDialog.cerrar(context);
-        
+        Navigator.pop(context); // Cerrar loading
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Error al guardar el registro - DNI duplicado"),
+            content: Text("Error al guardar el registro"),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
-      // 🆕 Cerrar diálogo de carga en caso de error
-      LoadingDialog.cerrar(context);
-      
+      Navigator.pop(context); // Cerrar cualquier loading abierto
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Error al procesar el registro: $e"),
+          content: Text("Error al guardar el registro: $e"),
           backgroundColor: Colors.red,
         ),
       );
     }
-    // Ya no necesitamos el finally con _isLoading
+  }
+
+  // Verificar conexión a internet (copiado de ver_registros_screen.dart)
+  Future<bool> _verificarConexion() async {
+    try {
+      print('🌐 DEBUG: Iniciando verificación de conexión...');
+      final result = await InternetAddress.lookup('google.com');
+      print('🌐 DEBUG: Resultado lookup: ${result.length} direcciones encontradas');
+      if (result.isNotEmpty) {
+        print('🌐 DEBUG: Primera IP: ${result[0].rawAddress}');
+      }
+      final tieneConexion = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+      print('🌐 DEBUG: Tiene conexión: $tieneConexion');
+      return tieneConexion;
+    } on SocketException catch (e) {
+      print('🌐 DEBUG: SocketException en verificación: $e');
+      return false;
+    } catch (e) {
+      print('🌐 DEBUG: Error inesperado en verificación: $e');
+      return false;
+    }
+  }
+
+  // Envío automático a la nube usando la misma lógica exitosa de _enviarSeleccionados
+  Future<Map<String, dynamic>> _enviarAutomaticoALaNube(int localId, Map<String, dynamic> personData, int organiId) async {
+    try {
+      print('🔍 DEBUG: Iniciando envío automático - LocalID: $localId, OrganiID: $organiId');
+      print('🔍 DEBUG: Datos persona - DNI: ${personData['dni']}, Nombre: ${personData['nombre']}');
+      
+      // Usar la misma verificación que funciona en ver_registros
+      print('🔍 DEBUG: Llamando a _verificarConexion()...');
+      final tieneConexion = await _verificarConexion();
+      print('🔍 DEBUG: Resultado _verificarConexion(): $tieneConexion');
+      
+      if (!tieneConexion) {
+        print('🌐 DEBUG: Sin conexión detectada - retornando sin conexión');
+        return {'success': false, 'message': 'Sin conexión a internet', 'isConnectionError': true};
+      }
+      
+      print('✅ DEBUG: Conexión verificada - procediendo con envío...');
+      
+      String? fotoFrontBase64;
+      String? fotoReverseBase64;
+      
+      try {
+        print('📷 DEBUG: Procesando fotos...');
+        // Conversión exacta como en _enviarSeleccionados
+        if (personData['fotoDniFrente'] != null) {
+          print('📷 DEBUG: Procesando foto frontal: ${personData['fotoDniFrente']}');
+          final file = File(personData['fotoDniFrente']);
+          if (await file.exists()) {
+            final bytes = await file.readAsBytes();
+            print('📷 DEBUG: Foto frontal leída - ${bytes.length} bytes');
+            if (bytes.length > 2 * 1024 * 1024) {
+              print('⚠️ DEBUG: Foto frontal muy grande, reduciendo...');
+              final smallerBytes = bytes.take(1024 * 1024).toList();
+              fotoFrontBase64 = base64Encode(smallerBytes);
+            } else {
+              fotoFrontBase64 = base64Encode(bytes);
+            }
+            print('📷 DEBUG: Foto frontal convertida a Base64 - ${fotoFrontBase64.length} caracteres');
+          } else {
+            print('❌ DEBUG: Archivo foto frontal no existe');
+          }
+        } else {
+          print('⚠️ DEBUG: personData[fotoDniFrente] es null');
+        }
+
+        if (personData['fotoDniReverso'] != null) {
+          print('📷 DEBUG: Procesando foto reverso: ${personData['fotoDniReverso']}');
+          final file = File(personData['fotoDniReverso']);
+          if (await file.exists()) {
+            final bytes = await file.readAsBytes();
+            print('📷 DEBUG: Foto reverso leída - ${bytes.length} bytes');
+            if (bytes.length > 2 * 1024 * 1024) {
+              print('⚠️ DEBUG: Foto reverso muy grande, reduciendo...');
+              final smallerBytes = bytes.take(1024 * 1024).toList();
+              fotoReverseBase64 = base64Encode(smallerBytes);
+            } else {
+              fotoReverseBase64 = base64Encode(bytes);
+            }
+            print('📷 DEBUG: Foto reverso convertida a Base64 - ${fotoReverseBase64.length} caracteres');
+          } else {
+            print('❌ DEBUG: Archivo foto reverso no existe');
+          }
+        } else {
+          print('⚠️ DEBUG: personData[fotoDniReverso] es null');
+        }
+      } catch (e) {
+        print('❌ DEBUG: Error procesando fotos: $e');
+        return {'success': false, 'message': 'Error procesando fotos: $e', 'isConnectionError': false};
+      }
+
+      print('🚀 DEBUG: Preparando llamada a la API...');
+      print('📋 DEBUG: Parámetros API:');
+      print('   - document: ${personData['dni'] ?? ''}');
+      print('   - id (organiId): $organiId');
+      print('   - movil: ${personData['telefono'] ?? ''}');
+      print('   - photoFrontBase64: ${fotoFrontBase64 != null ? '${fotoFrontBase64.length} chars' : 'null'}');
+      print('   - photoReverseBase64: ${fotoReverseBase64 != null ? '${fotoReverseBase64.length} chars' : 'null'}');
+      
+      // Llamada exacta como en _enviarSeleccionados
+      print('🚀 DEBUG: Ejecutando ApiService.sendPersonToApi...');
+      final response = await ApiService.sendPersonToApi(
+        document: personData['dni'] ?? '',
+        id: organiId,
+        movil: personData['telefono'] ?? '',
+        photoFrontBase64: fotoFrontBase64,
+        photoReverseBase64: fotoReverseBase64,
+      );
+
+      print('📥 DEBUG: Respuesta completa de la API: $response');
+      print('📥 DEBUG: Tipo de response: ${response.runtimeType}');
+      print('📥 DEBUG: Success value: ${response['success']} (tipo: ${response['success'].runtimeType})');
+      
+      // Mostrar todos los campos de la respuesta
+      print('📥 ===== RESPUESTA DETALLADA DE LA API =====');
+      response.forEach((key, value) {
+        print('📋 $key: $value (tipo: ${value.runtimeType})');
+      });
+      print('📥 ========================================');
+
+      if (response['success'] == true) {
+        print('✅ DEBUG: Enviado exitosamente - llamando a DatabaseService.marcarEnviado($localId)');
+        print('🎉 DATOS RETORNADOS POR LA API EN CASO DE ÉXITO:');
+        if (response.containsKey('data')) {
+          print('📊 Data: ${response['data']}');
+        }
+        if (response.containsKey('id')) {
+          print('🆔 ID asignado por la API: ${response['id']}');
+        }
+        if (response.containsKey('message')) {
+          print('💬 Mensaje de éxito: ${response['message']}');
+        }
+        await DatabaseService.marcarEnviado(localId);
+        print('✅ DEBUG: Marcado como enviado completado');
+        return {'success': true, 'message': response['message'] ?? 'Enviado exitosamente'};
+      } else {
+        print('❌ DEBUG: API respondió con error');
+        print('❌ DEBUG: Message: ${response['message'] ?? 'No message'}');
+        print('❌ DEBUG: Código de error: ${response['code'] ?? 'No code'}');
+        print('❌ DEBUG: Otros campos: ${response.keys.where((k) => k != 'success' && k != 'message' && k != 'code').map((k) => '$k: ${response[k]}').join(', ')}');
+        return {'success': false, 'message': response['message'] ?? 'Error desconocido', 'isConnectionError': false};
+      }
+      
+    } catch (e) {
+      print('🚫 Error en envío automático: $e');
+      return {'success': false, 'message': 'Error en envío automático: $e', 'isConnectionError': false};
+    }
   }
 
   void _verRegistros() {
@@ -719,13 +917,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
               TextFormField(
                 controller: _apellidoPaternoCtrl,
                 decoration: InputDecoration(
-                  labelText: "Apellido Paterno (opcional)",
+                  labelText: "Apellido Paterno",
                   prefixIcon: Icon(Icons.person, color: Colors.grey.shade400),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                // Removida validación - ahora es opcional
+                validator: (v) =>
+                    v == null || v.isEmpty ? "Campo requerido" : null,
               ),
               const SizedBox(height: 15),
               Row(
@@ -868,11 +1067,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    _dniDuplicado
-                        ? "DNI ya registrado"
-                        : "Registrar Candidato",
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _dniDuplicado
+                            ? "DNI ya registrado"
+                            : "Registrar Candidato",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
                   ),
                 ),
               ),
