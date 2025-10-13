@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:lacalera/models/user_models.dart';
 import 'package:lacalera/screens/login_screen.dart';
 import 'package:lacalera/screens/registro_screen.dart';
-import 'package:lacalera/services/database_services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatelessWidget {
