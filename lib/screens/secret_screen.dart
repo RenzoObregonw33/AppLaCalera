@@ -1,31 +1,73 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lacalera/services/database_services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:lacalera/widgets/error_test_widget.dart';
 
 class SecretScreen extends StatefulWidget {
   const SecretScreen({super.key});
 
-  @override
-  State<SecretScreen> createState() => _SecretScreenState();
-}
-
-class _SecretScreenState extends State<SecretScreen> {
+  // 🔸 VARIABLES ESTÁTICAS PARA EL LOGGING
   static final List<String> _appLogs = [];
   static bool _isCapturing = false;
   static void Function(String?, {int? wrapWidth})? _originalDebugPrint;
   static void Function(FlutterErrorDetails)? _originalErrorHandler;
   static void Function()? _updateUICallback;
 
-  List<String> _logs = [];
-  Map<String, dynamic> _systemInfo = {};
-  bool _isLoading = true;
+  // 🔸 MÉTODO PARA AGREGAR LOGS PERSONALIZADOS DESDE CUALQUIER PARTE DE LA APP
+  static void addCustomLog(String message) {
+    if (_isCapturing) {
+      final timestamp = DateTime.now().toIso8601String().substring(0, 19);
+      _appLogs.add('[$timestamp] 🔸 $message');
 
-  // Iniciar captura de logs (solo cuando se activa el modo debug)
+      // Mantener solo los últimos 50 logs
+      if (_appLogs.length > 50) {
+        _appLogs.removeAt(0);
+      }
+
+      _updateUICallback?.call();
+    }
+  }
+
+  // 🚨 MÉTODO ESPECÍFICO PARA ERRORES CAPTURADOS EN TRY-CATCH
+  static void addErrorLog(String error, {String? context, StackTrace? stackTrace}) {
+    if (_isCapturing) {
+      final timestamp = DateTime.now().toIso8601String().substring(0, 19);
+      String logMessage = '[$timestamp] 🚨 ERROR MANEJADO: $error';
+      
+      if (context != null) {
+        logMessage += ' | Contexto: $context';
+      }
+      
+      _appLogs.add(logMessage);
+      
+      if (stackTrace != null) {
+        final stackLines = stackTrace.toString().split('\n').take(3).join('\n');
+        _appLogs.add('[$timestamp] 📍 Stack: $stackLines');
+      }
+
+      // Mantener solo los últimos 50 logs
+      while (_appLogs.length > 50) {
+        _appLogs.removeAt(0);
+      }
+
+      _updateUICallback?.call();
+    }
+  }
+
+  // 📦 MÉTODO PARA LOGS RAW FORMATEADOS (usado por ApiLogger)
+  static void addRawLog(String formattedLog) {
+    if (_isCapturing) {
+      _appLogs.add(formattedLog);
+
+      // Mantener solo los últimos 50 logs
+      while (_appLogs.length > 50) {
+        _appLogs.removeAt(0);
+      }
+
+      _updateUICallback?.call();
+    }
+  }
+
+  // INICIAR CAPTURA DE LOGS
   static void startLogCapture() {
     if (_isCapturing) return;
 
@@ -34,6 +76,13 @@ class _SecretScreenState extends State<SecretScreen> {
 
     final timestamp = DateTime.now().toIso8601String().substring(0, 19);
     _appLogs.add('[$timestamp] === CAPTURA DE LOGS INICIADA ===');
+    _appLogs.add('[$timestamp] 📋 QUÉ SE CAPTURA:');
+    _appLogs.add('[$timestamp]   • Errores de Flutter (FlutterError)');
+    _appLogs.add('[$timestamp]   • Mensajes de debugPrint()');
+    _appLogs.add('[$timestamp]   • Excepciones no manejadas');
+    _appLogs.add('[$timestamp]   • Errores de try-catch (con addErrorLog)');
+    _appLogs.add('[$timestamp]   • Logs personalizados (con addCustomLog)');
+    _appLogs.add('[$timestamp] 🎯 Estado: ACTIVO - Esperando eventos...');
 
     if (kDebugMode) {
       // Guardar el debugPrint original
@@ -43,7 +92,7 @@ class _SecretScreenState extends State<SecretScreen> {
       debugPrint = (String? message, {int? wrapWidth}) {
         if (_isCapturing && message != null) {
           final timestamp = DateTime.now().toIso8601String().substring(0, 19);
-          _appLogs.add('[$timestamp] PRINT: $message');
+          _appLogs.add('[$timestamp] 🖨️ PRINT: $message');
 
           // Mantener solo los últimos 50 logs
           if (_appLogs.length > 50) {
@@ -61,36 +110,19 @@ class _SecretScreenState extends State<SecretScreen> {
       // Guardar el manejador de errores original
       _originalErrorHandler = FlutterError.onError;
 
-      // Interceptar errores no manejados con detalles completos
+      // Interceptar errores de Flutter
       FlutterError.onError = (FlutterErrorDetails details) {
         if (_isCapturing) {
           final timestamp = DateTime.now().toIso8601String().substring(0, 19);
-
-          // Capturar error completo con stack trace y números de línea
-          final error = details.exception.toString();
-          final context = details.context?.toString() ?? 'Unknown context';
-          final library = details.library ?? 'Unknown library';
-
-          _appLogs.add(
-            '[$timestamp] ==================== ERROR ====================',
-          );
-          _appLogs.add('[$timestamp] LIBRARY: $library');
-          _appLogs.add('[$timestamp] CONTEXT: $context');
-          _appLogs.add('[$timestamp] ERROR: $error');
-
-          // Stack trace completo con números de línea
-          if (details.stack != null) {
-            _appLogs.add('[$timestamp] STACK TRACE:');
-            final stackLines = details.stack.toString().split('\n');
-            for (int i = 0; i < stackLines.length && i < 10; i++) {
-              if (stackLines[i].trim().isNotEmpty) {
-                _appLogs.add('[$timestamp]   ${stackLines[i].trim()}');
-              }
-            }
-          }
+          final stackLines = details.stack
+              .toString()
+              .split('\n')
+              .take(5)
+              .join('\n');
 
           _appLogs.add(
-            '[$timestamp] ================================================',
+            '[$timestamp] 💥 FLUTTER ERROR: ${details.exception}\n'
+            '📍 Stack:\n$stackLines',
           );
 
           // Mantener límite de logs
@@ -108,7 +140,7 @@ class _SecretScreenState extends State<SecretScreen> {
     }
   }
 
-  // Detener captura de logs
+  // DETENER CAPTURA DE LOGS
   static void stopLogCapture() {
     if (!_isCapturing) return;
 
@@ -127,195 +159,36 @@ class _SecretScreenState extends State<SecretScreen> {
   }
 
   @override
+  State<SecretScreen> createState() => _SecretScreenState();
+}
+
+class _SecretScreenState extends State<SecretScreen> {
+  List<String> _logs = [];
+  bool _isLoading = true;
+
+  @override
   void initState() {
     super.initState();
     // Establecer callback para actualizar UI
-    _updateUICallback = () {
+    SecretScreen._updateUICallback = () {
       if (mounted) {
         setState(() {});
       }
     };
     // Iniciar captura automáticamente al abrir la pantalla
-    startLogCapture();
-    _loadDeveloperInfo();
+    SecretScreen.startLogCapture();
+    setState(() => _isLoading = false);
   }
 
   @override
   void dispose() {
     // Limpiar callback al destruir el widget
-    _updateUICallback = null;
+    SecretScreen._updateUICallback = null;
     super.dispose();
   }
 
-  Future<void> _loadDeveloperInfo() async {
-    setState(() => _isLoading = true);
-
-    try {
-      await _loadSystemInfo();
-      await _loadRecentLogs();
-    } catch (e) {
-      _logs.add('Error cargando información: $e');
-    }
-
-    setState(() => _isLoading = false);
-  }
-
-  Future<void> _loadSystemInfo() async {
-    final prefs = await SharedPreferences.getInstance();
-    final directory = await getApplicationDocumentsDirectory();
-
-    _systemInfo = {
-      'App Version': '1.0.0',
-      'Flutter Version': 'Flutter 3.x',
-      'Platform': Platform.operatingSystem,
-      'Platform Version': Platform.operatingSystemVersion,
-      'Documents Path': directory.path,
-      'SharedPreferences Keys': prefs.getKeys().length.toString(),
-      'Database Status': await _getDatabaseStatus(),
-      'Memoria RAM': await _getMemoryInfo(),
-      'Captura Activa': _isCapturing ? 'SÍ' : 'NO',
-      'Total Logs Capturados': _appLogs.length.toString(),
-      'Timestamp': DateTime.now().toIso8601String(),
-    };
-  }
-
-  Future<String> _getDatabaseStatus() async {
-    try {
-      final db = await DatabaseService.database;
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table'",
-      );
-      return 'OK - ${tables.length} tablas';
-    } catch (e) {
-      return 'Error: $e';
-    }
-  }
-
-  Future<String> _getMemoryInfo() async {
-    try {
-      // Información básica del proceso
-      final info = ProcessInfo.currentRss;
-      return '${(info / 1024 / 1024).toStringAsFixed(2)} MB';
-    } catch (e) {
-      return 'No disponible';
-    }
-  }
-
-  Future<void> _loadRecentLogs() async {
-    final timestamp = DateTime.now().toIso8601String().substring(0, 19);
-
-    _logs = [
-      '[$timestamp] === SESIÓN DE DIAGNÓSTICO INICIADA ===',
-      '[$timestamp] Modo errores activado por usuario',
-      '[$timestamp] Analizando estado del sistema...',
-    ];
-
-    try {
-      // Agregar logs capturados en tiempo real
-      if (_appLogs.isNotEmpty) {
-        _logs.add('[$timestamp] === LOGS EN TIEMPO REAL ===');
-        _logs.addAll(_appLogs);
-      } else {
-        _logs.add(
-          '[$timestamp] [INFO] Sin errores capturados hasta el momento',
-        );
-      }
-
-      // Separador para análisis del sistema
-      _logs.add('[$timestamp] === ANÁLISIS DEL SISTEMA ===');
-
-      // Obtener estadísticas de la base de datos
-      final pessoas = await DatabaseService.getPeople();
-      _logs.add('[$timestamp] [DB] Total de registros: ${pessoas.length}');
-
-      final enviados = pessoas.where((p) => p['enviadaNube'] == 1).length;
-      final pendientes = pessoas.length - enviados;
-      _logs.add(
-        '[$timestamp] [DB] Enviados: $enviados, Pendientes: $pendientes',
-      );
-
-      _logs.add('[$timestamp] [OK] Análisis de base de datos completado');
-    } catch (e) {
-      _logs.add('[$timestamp] [ERROR] Error en análisis del sistema: $e');
-    }
-  }
-
-  Future<void> _clearAllData() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('⚠️ ADVERTENCIA'),
-        content: const Text(
-          'Esto eliminará TODOS los datos de la aplicación:\n\n'
-          '• Todos los registros de candidatos\n'
-          '• Todas las fotos\n'
-          '• Configuraciones de usuario\n'
-          '• Datos de sesión\n'
-          '• Logs capturados\n\n'
-          '¿Está COMPLETAMENTE seguro?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('ELIMINAR TODO'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final timestamp = DateTime.now().toIso8601String().substring(0, 19);
-
-      try {
-        // Limpiar logs capturados
-        _appLogs.clear();
-
-        // Eliminar base de datos
-        final db = await DatabaseService.database;
-        await db.execute('DELETE FROM personas');
-
-        // Eliminar SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.clear();
-
-        // Eliminar directorio de fotos
-        final directory = await getApplicationDocumentsDirectory();
-        final fotosDir = Directory('${directory.path}/fotos');
-        if (await fotosDir.exists()) {
-          await fotosDir.delete(recursive: true);
-        }
-
-        _logs.add(
-          '[$timestamp] [SYSTEM] Todos los datos eliminados correctamente',
-        );
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Todos los datos han sido eliminados'),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        await _loadDeveloperInfo();
-      } catch (e) {
-        _logs.add('[$timestamp] [ERROR] Fallo al eliminar datos: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error eliminando datos: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   void _exportLogs() {
-    final logsText = _appLogs.join('\n');
+    final logsText = SecretScreen._appLogs.join('\n');
     Clipboard.setData(ClipboardData(text: logsText));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -327,7 +200,7 @@ class _SecretScreenState extends State<SecretScreen> {
 
   void _clearLogs() {
     setState(() {
-      _appLogs.clear();
+      SecretScreen._appLogs.clear();
       _logs.clear();
     });
 
@@ -340,10 +213,10 @@ class _SecretScreenState extends State<SecretScreen> {
   }
 
   void _toggleCapture() {
-    if (_isCapturing) {
-      stopLogCapture();
+    if (SecretScreen._isCapturing) {
+      SecretScreen.stopLogCapture();
     } else {
-      startLogCapture();
+      SecretScreen.startLogCapture();
     }
     setState(() {});
   }
@@ -365,7 +238,7 @@ class _SecretScreenState extends State<SecretScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadDeveloperInfo,
+            onPressed: () => setState(() {}),
           ),
         ],
       ),
@@ -378,37 +251,19 @@ class _SecretScreenState extends State<SecretScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Información del sistema
-                  _buildSection(
-                    'Información del Sistema',
-                    Icons.info_outline,
-                    Column(
-                      children: _systemInfo.entries
-                          .map((entry) => _buildInfoRow(entry.key, entry.value))
-                          .toList(),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Widget de pruebas de errores (TEMPORAL)
-                  const ErrorTestWidget(),
-
-                  const SizedBox(height: 20),
-
                   // Control de captura
                   Card(
                     elevation: 2,
-                    color: _isCapturing ? Colors.green[50] : Colors.red[50],
+                    color: SecretScreen._isCapturing ? Colors.green[50] : Colors.red[50],
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
                           Icon(
-                            _isCapturing
+                            SecretScreen._isCapturing
                                 ? Icons.play_circle_filled
                                 : Icons.stop_circle,
-                            color: _isCapturing ? Colors.green : Colors.red,
+                            color: SecretScreen._isCapturing ? Colors.green : Colors.red,
                             size: 32,
                           ),
                           const SizedBox(width: 12),
@@ -417,17 +272,17 @@ class _SecretScreenState extends State<SecretScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Captura de Logs: ${_isCapturing ? "ACTIVA" : "DETENIDA"}',
+                                  'Captura de Logs: ${SecretScreen._isCapturing ? "ACTIVA" : "DETENIDA"}',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: _isCapturing
+                                    color: SecretScreen._isCapturing
                                         ? Colors.green
                                         : Colors.red,
                                   ),
                                 ),
                                 Text(
-                                  _isCapturing
+                                  SecretScreen._isCapturing
                                       ? 'Capturando errores en tiempo real...'
                                       : 'Presiona para activar captura',
                                   style: const TextStyle(color: Colors.grey),
@@ -438,11 +293,11 @@ class _SecretScreenState extends State<SecretScreen> {
                           ElevatedButton.icon(
                             onPressed: _toggleCapture,
                             icon: Icon(
-                              _isCapturing ? Icons.stop : Icons.play_arrow,
+                              SecretScreen._isCapturing ? Icons.stop : Icons.play_arrow,
                             ),
-                            label: Text(_isCapturing ? 'Detener' : 'Iniciar'),
+                            label: Text(SecretScreen._isCapturing ? 'Detener' : 'Iniciar'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: _isCapturing
+                              backgroundColor: SecretScreen._isCapturing
                                   ? Colors.red
                                   : Colors.green,
                               foregroundColor: Colors.white,
@@ -465,84 +320,76 @@ class _SecretScreenState extends State<SecretScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                '${_appLogs.length} entradas - Captura: ${_isCapturing ? "ACTIVA" : "INACTIVA"}',
-                                style: TextStyle(
-                                  color: _isCapturing
-                                      ? Colors.green
-                                      : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                '${SecretScreen._appLogs.length} entradas - Captura: ${SecretScreen._isCapturing ? "ACTIVA" : "INACTIVA"}',
+                                style: const TextStyle(color: Colors.grey),
                               ),
                             ),
-                            TextButton.icon(
-                              onPressed: _clearLogs,
-                              icon: const Icon(Icons.clear, size: 16),
-                              label: const Text('Limpiar'),
-                            ),
-                            TextButton.icon(
-                              onPressed: _exportLogs,
-                              icon: const Icon(Icons.copy, size: 16),
-                              label: const Text('Copiar'),
+                            Row(
+                              children: [
+                                TextButton.icon(
+                                  onPressed: _exportLogs,
+                                  icon: const Icon(Icons.copy, size: 16),
+                                  label: const Text('Copiar'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: _clearLogs,
+                                  icon: const Icon(Icons.clear, size: 16),
+                                  label: const Text('Limpiar'),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Container(
+                          height: 400,
                           width: double.infinity,
-                          height: 350,
-                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.black87,
+                            color: Colors.black,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: _isCapturing ? Colors.green : Colors.grey,
-                              width: 2,
-                            ),
+                            border: Border.all(color: Colors.grey[400]!),
                           ),
-                          child: SingleChildScrollView(
-                            reverse: true,
-                            child: Text(
-                              _appLogs.isEmpty
-                                  ? '[Sin logs capturados]'
-                                  : _appLogs.join('\n'),
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontFamily: 'monospace',
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Acciones de desarrollador
-                  _buildSection(
-                    'Acciones de Desarrollador',
-                    Icons.build,
-                    Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(
-                            Icons.refresh,
-                            color: Colors.blue,
-                          ),
-                          title: const Text('Recargar información'),
-                          subtitle: const Text('Actualizar todos los datos'),
-                          onTap: _loadDeveloperInfo,
-                        ),
-                        const Divider(),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.delete_forever,
-                            color: Colors.red,
-                          ),
-                          title: const Text('Eliminar todos los datos'),
-                          subtitle: const Text('⚠️ Acción irreversible'),
-                          onTap: _clearAllData,
+                          child: SecretScreen._appLogs.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    '📱 Esperando errores...\n\n'
+                                    '💡 Cómo generar logs:\n'
+                                    '• Desconecta internet y haz login\n'
+                                    '• Registra un DNI que ya existe\n'
+                                    '• Usa SecretScreen.addErrorLog() en try-catch\n'
+                                    '• Usa SecretScreen.addCustomLog() para info',
+                                    style: TextStyle(color: Colors.green, fontSize: 12),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.all(8),
+                                  itemCount: SecretScreen._appLogs.length,
+                                  itemBuilder: (context, index) {
+                                    final log = SecretScreen._appLogs[index];
+                                    Color logColor = Colors.green[300]!;
+                                    
+                                    if (log.contains('ERROR') || log.contains('🚨')) {
+                                      logColor = Colors.red[300]!;
+                                    } else if (log.contains('🔸')) {
+                                      logColor = Colors.blue[300]!;
+                                    } else if (log.contains('PRINT') || log.contains('🖨️')) {
+                                      logColor = Colors.yellow[300]!;
+                                    }
+                                    
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 1),
+                                      child: Text(
+                                        log,
+                                        style: TextStyle(
+                                          color: logColor,
+                                          fontSize: 11,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                         ),
                       ],
                     ),
@@ -574,31 +421,10 @@ class _SecretScreenState extends State<SecretScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             content,
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontFamily: 'monospace')),
-          ),
-        ],
       ),
     );
   }

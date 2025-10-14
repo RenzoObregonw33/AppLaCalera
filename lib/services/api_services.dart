@@ -1,8 +1,48 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../screens/secret_screen.dart';
+import 'api_logger.dart';
 
 class ApiService {
+  
+  /// 🎬 MÉTODO DE DEMOSTRACIÓN - Genera el ejemplo exacto de log solicitado
+  static Future<void> demoApiLogger() async {
+    // Ejemplo 1: Error 401 como el solicitado
+    await ApiLogger.addApiLog(
+      method: 'POST',
+      endpoint: '/web_services/login',
+      statusCode: 401,
+      function: 'login',
+      errorMessage: 'Credenciales inválidas',
+      requestData: {
+        'email': 'juan@test.com',
+        'password': 'secretpassword123', // Se va a ocultar automáticamente
+      },
+      responseData: {
+        'success': false,
+        'message': 'Credenciales inválidas'
+      },
+    );
+
+    // Ejemplo 2: Éxito 200
+    await ApiLogger.addApiLog(
+      method: 'POST',
+      endpoint: '/web_services/verify-document',
+      statusCode: 200,
+      function: 'sendPersonToApi',
+      requestData: {
+        'document': '12345678',
+        'id': 1,
+        'movil': '3001234567'
+      },
+      responseData: {
+        'success': true,
+        'message': 'Documento verificado correctamente'
+      },
+    );
+  }
+  
   static Future<Map<String, dynamic>> sendPersonToApi({
     required String document,
     required int id,
@@ -37,14 +77,37 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
+        // 🔸 Log éxito de API con formato profesional
+        await ApiLogger.addApiLog(
+          method: 'POST',
+          endpoint: '/web_services/verify-document',
+          statusCode: 200,
+          function: 'sendPersonToApi',
+          requestData: body,
+          responseData: data,
+        );
+        
         return {
           'success': data['success'] ?? false,
           'message': data['message'] ?? '',
         };
       } else {
-        // Intentar obtener el mensaje del servidor para cualquier error HTTP
+        // 🚨 Log error de API con formato profesional
         try {
           final data = jsonDecode(response.body);
+          
+          // Ejemplo del formato solicitado para errores
+          await ApiLogger.addApiLog(
+            method: 'POST',
+            endpoint: '/web_services/verify-document',
+            statusCode: response.statusCode,
+            function: 'sendPersonToApi',
+            requestData: body,
+            responseData: data,
+            errorMessage: response.statusCode == 401 ? 'Credenciales inválidas' : null,
+          );
+          
           return {
             'success': false,
             'message': data['message'] ?? 'Error del servidor: ${response.statusCode}',
@@ -58,6 +121,11 @@ class ApiService {
         }
       }
     } catch (e) {
+      // 🚨 Log excepción de red
+      SecretScreen.addErrorLog(
+        'NETWORK ERROR: ${e.toString()}',
+        context: 'verify-document API call',
+      );
       // Manejo específico de errores comunes en dispositivos reales
       String errorMessage = 'Error de conexión';
       if (e.toString().contains('TimeoutException')) {
