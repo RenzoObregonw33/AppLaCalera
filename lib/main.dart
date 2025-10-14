@@ -61,7 +61,13 @@ class MyApp extends StatelessWidget {
         textSelectionTheme: const TextSelectionThemeData(
           cursorColor: Color(0xFF1565C0), // Color del cursor
           selectionColor: Color(0xFF1565C0), // Color de la selección de texto
-          selectionHandleColor: Color(0xFF1565C0), // Color de los handles de selección
+          selectionHandleColor: Color(
+            0xFF1565C0,
+          ), // Color de los handles de selección
+        ),
+        // Configurar el tema de los CircularProgressIndicator
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: Color(0xFF1565C0), // Indicadores de progreso azules
         ),
         // Configurar el tema de los TextFields
         inputDecorationTheme: InputDecorationTheme(
