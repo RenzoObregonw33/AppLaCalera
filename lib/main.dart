@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lacalera/screens/login_screen.dart';
 import 'package:lacalera/screens/home_screen.dart';
 import 'package:lacalera/models/user_models.dart';
+import 'package:lacalera/services/secret_mode_service.dart';
 import 'dart:convert';
 
 void main() async {
@@ -33,6 +34,9 @@ void main() async {
           await prefs.remove('auth_token');
           await prefs.remove('login_time');
           await prefs.remove('user_data');
+
+          // 🚨 DESACTIVAR MODO SECRETO POR ERROR EN DATOS (logs se mantienen)
+          SecretModeService.clearSecretMode();
         }
       }
     } else {
@@ -40,6 +44,9 @@ void main() async {
       await prefs.remove('auth_token');
       await prefs.remove('login_time');
       await prefs.remove('user_data');
+
+      // 🚨 DESACTIVAR MODO SECRETO POR VENCIMIENTO (logs se mantienen)
+      SecretModeService.clearSecretMode();
     }
   }
 

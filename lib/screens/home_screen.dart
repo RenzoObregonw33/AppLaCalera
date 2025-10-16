@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lacalera/models/user_models.dart';
 import 'package:lacalera/screens/login_screen.dart';
 import 'package:lacalera/screens/registro_screen.dart';
+import 'package:lacalera/services/secret_mode_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -40,9 +41,12 @@ class HomeScreen extends StatelessWidget {
 
     if (confirmar == true) {
       // Limpiar datos de sesión
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+
+      // 🚨 DESACTIVAR MODO SECRETO Y DETENER CAPTURA (logs se mantienen)
+      SecretModeService.clearSecretMode();
+
       // Navegar al LoginScreen y eliminar historial
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),

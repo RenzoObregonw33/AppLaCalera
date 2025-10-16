@@ -28,17 +28,21 @@ class SecretScreen extends StatefulWidget {
   }
 
   // 🚨 MÉTODO ESPECÍFICO PARA ERRORES CAPTURADOS EN TRY-CATCH
-  static void addErrorLog(String error, {String? context, StackTrace? stackTrace}) {
+  static void addErrorLog(
+    String error, {
+    String? context,
+    StackTrace? stackTrace,
+  }) {
     if (_isCapturing) {
       final timestamp = DateTime.now().toIso8601String().substring(0, 19);
       String logMessage = '[$timestamp] 🚨 ERROR MANEJADO: $error';
-      
+
       if (context != null) {
         logMessage += ' | Contexto: $context';
       }
-      
+
       _appLogs.add(logMessage);
-      
+
       if (stackTrace != null) {
         final stackLines = stackTrace.toString().split('\n').take(3).join('\n');
         _appLogs.add('[$timestamp] 📍 Stack: $stackLines');
@@ -72,16 +76,16 @@ class SecretScreen extends StatefulWidget {
     if (_isCapturing) return;
 
     _isCapturing = true;
-    _appLogs.clear();
+    // NO limpiar logs existentes - solo agregar mensaje de inicio
 
     final timestamp = DateTime.now().toIso8601String().substring(0, 19);
-    _appLogs.add('[$timestamp] === CAPTURA DE LOGS INICIADA ===');
+    /*_appLogs.add('[$timestamp] === CAPTURA DE LOGS INICIADA ===');
     _appLogs.add('[$timestamp] 📋 QUÉ SE CAPTURA:');
     _appLogs.add('[$timestamp]   • Errores de Flutter (FlutterError)');
     _appLogs.add('[$timestamp]   • Mensajes de debugPrint()');
     _appLogs.add('[$timestamp]   • Excepciones no manejadas');
     _appLogs.add('[$timestamp]   • Errores de try-catch (con addErrorLog)');
-    _appLogs.add('[$timestamp]   • Logs personalizados (con addCustomLog)');
+    _appLogs.add('[$timestamp]   • Logs personalizados (con addCustomLog)'); */
     _appLogs.add('[$timestamp] 🎯 Estado: ACTIVO - Esperando eventos...');
 
     if (kDebugMode) {
@@ -158,6 +162,16 @@ class SecretScreen extends StatefulWidget {
     }
   }
 
+  // 🧹 MÉTODO PARA LIMPIAR LOGS MANUALMENTE (botón "Limpiar")
+  static void clearAllLogs() {
+    _appLogs.clear();
+
+    // Solo limpiar logs, NO afectar el estado de captura
+    // La captura sigue activa si estaba activa
+
+    _updateUICallback?.call();
+  }
+
   @override
   State<SecretScreen> createState() => _SecretScreenState();
 }
@@ -175,8 +189,8 @@ class _SecretScreenState extends State<SecretScreen> {
         setState(() {});
       }
     };
-    // Iniciar captura automáticamente al abrir la pantalla
-    SecretScreen.startLogCapture();
+    // YA NO iniciar captura aquí - se inicia automáticamente con los 7 toques
+    // SecretScreen.startLogCapture(); ← REMOVIDO
     setState(() => _isLoading = false);
   }
 
@@ -224,10 +238,23 @@ class _SecretScreenState extends State<SecretScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Errores', style: TextStyle(color: Colors.white)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Modo Debug',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
         centerTitle: true,
         backgroundColor: Color(0xFF1565C0),
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
@@ -236,195 +263,451 @@ class _SecretScreenState extends State<SecretScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => setState(() {}),
+          Container(
+            margin: EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.refresh, color: Colors.white, size: 20),
+              ),
+              onPressed: () => setState(() {}),
+            ),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF1565C0)),
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF1565C0)),
+                  SizedBox(height: 16),
+                  Text(
+                    'Cargando modo debug...',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Control de captura
-                  Card(
-                    elevation: 2,
-                    color: SecretScreen._isCapturing ? Colors.green[50] : Colors.red[50],
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            SecretScreen._isCapturing
-                                ? Icons.play_circle_filled
-                                : Icons.stop_circle,
-                            color: SecretScreen._isCapturing ? Colors.green : Colors.red,
-                            size: 32,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Captura de Logs: ${SecretScreen._isCapturing ? "ACTIVA" : "DETENIDA"}',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: SecretScreen._isCapturing
-                                        ? Colors.green
-                                        : Colors.red,
-                                  ),
-                                ),
-                                Text(
-                                  SecretScreen._isCapturing
-                                      ? 'Capturando errores en tiempo real...'
-                                      : 'Presiona para activar captura',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _toggleCapture,
-                            icon: Icon(
-                              SecretScreen._isCapturing ? Icons.stop : Icons.play_arrow,
-                            ),
-                            label: Text(SecretScreen._isCapturing ? 'Detener' : 'Iniciar'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: SecretScreen._isCapturing
-                                  ? Colors.red
-                                  : Colors.green,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  // Panel de control de captura
+                  _buildCaptureControlPanel(),
 
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
 
-                  // Logs del sistema
-                  _buildSection(
-                    'Logs de Errores en Tiempo Real',
-                    Icons.bug_report,
-                    Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${SecretScreen._appLogs.length} entradas - Captura: ${SecretScreen._isCapturing ? "ACTIVA" : "INACTIVA"}',
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                TextButton.icon(
-                                  onPressed: _exportLogs,
-                                  icon: const Icon(Icons.copy, size: 16),
-                                  label: const Text('Copiar'),
-                                ),
-                                TextButton.icon(
-                                  onPressed: _clearLogs,
-                                  icon: const Icon(Icons.clear, size: 16),
-                                  label: const Text('Limpiar'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          height: 400,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[400]!),
-                          ),
-                          child: SecretScreen._appLogs.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    '📱 Esperando errores...\n\n'
-                                    '💡 Cómo generar logs:\n'
-                                    '• Desconecta internet y haz login\n'
-                                    '• Registra un DNI que ya existe\n'
-                                    '• Usa SecretScreen.addErrorLog() en try-catch\n'
-                                    '• Usa SecretScreen.addCustomLog() para info',
-                                    style: TextStyle(color: Colors.green, fontSize: 12),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.all(8),
-                                  itemCount: SecretScreen._appLogs.length,
-                                  itemBuilder: (context, index) {
-                                    final log = SecretScreen._appLogs[index];
-                                    Color logColor = Colors.green[300]!;
-                                    
-                                    if (log.contains('ERROR') || log.contains('🚨')) {
-                                      logColor = Colors.red[300]!;
-                                    } else if (log.contains('🔸')) {
-                                      logColor = Colors.blue[300]!;
-                                    } else if (log.contains('PRINT') || log.contains('🖨️')) {
-                                      logColor = Colors.yellow[300]!;
-                                    }
-                                    
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 1),
-                                      child: Text(
-                                        log,
-                                        style: TextStyle(
-                                          color: logColor,
-                                          fontSize: 11,
-                                          fontFamily: 'monospace',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Panel de logs
+                  _buildLogsPanel(),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildSection(String title, IconData icon, Widget content) {
-    return Card(
-      elevation: 2,
+
+  Widget _buildCaptureControlPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, color: Colors.black),
-                const SizedBox(width: 8),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: SecretScreen._isCapturing
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.settings,
+                    color: SecretScreen._isCapturing
+                        ? Colors.green
+                        : Colors.red,
+                    size: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
                 Text(
-                  title,
-                  style: const TextStyle(
+                  'Control de Captura',
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            content,
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: SecretScreen._isCapturing
+                    ? Colors.green[50]
+                    : Colors.red[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: SecretScreen._isCapturing
+                      ? Colors.green.withOpacity(0.3)
+                      : Colors.red.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: SecretScreen._isCapturing
+                          ? Colors.green
+                          : Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      SecretScreen._isCapturing
+                          ? Icons.play_circle_filled
+                          : Icons.stop_circle,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Captura: ${SecretScreen._isCapturing ? "ACTIVA" : "DETENIDA"}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: SecretScreen._isCapturing
+                                ? Colors.green[700]
+                                : Colors.red[700],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          SecretScreen._isCapturing
+                              ? 'Registrando logs en tiempo real'
+                              : 'Presiona el botón para activar',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _toggleCapture,
+                    icon: Icon(
+                      SecretScreen._isCapturing ? Icons.stop : Icons.play_arrow,
+                      size: 18,
+                    ),
+                    label: Text(
+                      SecretScreen._isCapturing ? 'Detener' : 'Iniciar',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: SecretScreen._isCapturing
+                          ? Colors.red
+                          : Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLogsPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.terminal, color: Colors.blue, size: 20),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Terminal de Logs',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${SecretScreen._appLogs.length} entradas',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _exportLogs,
+                    icon: Icon(Icons.copy, size: 16),
+                    label: Text('Copiar Todo'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue,
+                      side: BorderSide(color: Colors.blue.withOpacity(0.5)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _clearLogs,
+                    icon: Icon(Icons.delete_outline, size: 16),
+                    label: Text('Limpiar Todo'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      side: BorderSide(color: Colors.orange.withOpacity(0.5)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Container(
+              height: 400,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: SecretScreen._appLogs.isEmpty
+                  ? _buildEmptyLogsState()
+                  : _buildLogsList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyLogsState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.code, size: 48, color: Colors.grey[400]),
+          SizedBox(height: 16),
+          Text(
+            'Sin logs registrados',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 8),
+          Container(
+            margin: EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Los logs aparecerán aquí en tiempo real cuando la captura esté activa',
+              style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          SizedBox(height: 24),
+          Container(
+            padding: EdgeInsets.all(16),
+            margin: EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '💡 Cómo generar logs:',
+                  style: TextStyle(
+                    color: Colors.yellow[300],
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(height: 8),
+                ...[
+                  '• Registra un candidato',
+                  '• Desconecta internet y prueba login',
+                  '• Usa el widget de pruebas',
+                  '• Cualquier error automático',
+                ].map(
+                  (tip) => Padding(
+                    padding: EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      tip,
+                      style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogsList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: SecretScreen._appLogs.length,
+      itemBuilder: (context, index) {
+        final log = SecretScreen._appLogs[index];
+        return _buildLogEntry(log, index);
+      },
+    );
+  }
+
+  Widget _buildLogEntry(String log, int index) {
+    Color logColor = Color(0xFF4CAF50); // Verde por defecto
+    Color backgroundColor = Colors.transparent;
+    IconData? prefixIcon;
+
+    // Determinar color y estilo según el tipo de log
+    if (log.contains('ERROR') || log.contains('🚨')) {
+      logColor = Color(0xFFFF5252);
+      backgroundColor = Color(0xFFFF5252).withOpacity(0.1);
+      prefixIcon = Icons.error;
+    } else if (log.contains('🔸') || log.contains('INFO')) {
+      logColor = Color(0xFF2196F3);
+      backgroundColor = Color(0xFF2196F3).withOpacity(0.1);
+      prefixIcon = Icons.info;
+    } else if (log.contains('PRINT') || log.contains('🖨️')) {
+      logColor = Color(0xFFFFC107);
+      backgroundColor = Color(0xFFFFC107).withOpacity(0.1);
+      prefixIcon = Icons.print;
+    } else if (log.contains('API') || log.contains('🌐')) {
+      logColor = Color(0xFF9C27B0);
+      backgroundColor = Color(0xFF9C27B0).withOpacity(0.1);
+      prefixIcon = Icons.api;
+    } else if (log.contains('INICIADA') || log.contains('DETENIDA')) {
+      logColor = Color(0xFF607D8B);
+      backgroundColor = Color(0xFF607D8B).withOpacity(0.1);
+      prefixIcon = Icons.play_arrow;
+    }
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: logColor.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (prefixIcon != null) ...[
+            Icon(prefixIcon, color: logColor, size: 16),
+            SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              log,
+              style: TextStyle(
+                color: logColor,
+                fontSize: 12,
+                fontFamily: 'monospace',
+                height: 1.4,
+              ),
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: logColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '#${index + 1}',
+              style: TextStyle(
+                color: logColor,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

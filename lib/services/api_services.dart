@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../screens/secret_screen.dart';
 import 'api_logger.dart';
 
 class ApiService {
-  
   /// 🎬 MÉTODO DE DEMOSTRACIÓN - Genera el ejemplo exacto de log solicitado
   static Future<void> demoApiLogger() async {
     // Ejemplo 1: Error 401 como el solicitado
@@ -19,10 +17,7 @@ class ApiService {
         'email': 'juan@test.com',
         'password': 'secretpassword123', // Se va a ocultar automáticamente
       },
-      responseData: {
-        'success': false,
-        'message': 'Credenciales inválidas'
-      },
+      responseData: {'success': false, 'message': 'Credenciales inválidas'},
     );
 
     // Ejemplo 2: Éxito 200
@@ -31,18 +26,14 @@ class ApiService {
       endpoint: '/web_services/verify-document',
       statusCode: 200,
       function: 'sendPersonToApi',
-      requestData: {
-        'document': '12345678',
-        'id': 1,
-        'movil': '3001234567'
-      },
+      requestData: {'document': '12345678', 'id': 1, 'movil': '3001234567'},
       responseData: {
         'success': true,
-        'message': 'Documento verificado correctamente'
+        'message': 'Documento verificado correctamente',
       },
     );
   }
-  
+
   static Future<Map<String, dynamic>> sendPersonToApi({
     required String document,
     required int id,
@@ -77,7 +68,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // 🔸 Log éxito de API con formato profesional
         await ApiLogger.addApiLog(
           method: 'POST',
@@ -87,7 +78,7 @@ class ApiService {
           requestData: body,
           responseData: data,
         );
-        
+
         return {
           'success': data['success'] ?? false,
           'message': data['message'] ?? '',
@@ -96,7 +87,7 @@ class ApiService {
         // 🚨 Log error de API con formato profesional
         try {
           final data = jsonDecode(response.body);
-          
+
           // Ejemplo del formato solicitado para errores
           await ApiLogger.addApiLog(
             method: 'POST',
@@ -105,12 +96,15 @@ class ApiService {
             function: 'sendPersonToApi',
             requestData: body,
             responseData: data,
-            errorMessage: response.statusCode == 401 ? 'Credenciales inválidas' : null,
+            errorMessage: response.statusCode == 401
+                ? 'Credenciales inválidas'
+                : null,
           );
-          
+
           return {
             'success': false,
-            'message': data['message'] ?? 'Error del servidor: ${response.statusCode}',
+            'message':
+                data['message'] ?? 'Error del servidor: ${response.statusCode}',
           };
         } catch (e) {
           // Si no se puede parsear la respuesta, usar mensaje por defecto
@@ -121,11 +115,14 @@ class ApiService {
         }
       }
     } catch (e) {
-      // 🚨 Log excepción de red
-      SecretScreen.addErrorLog(
-        'NETWORK ERROR: ${e.toString()}',
+      // 🚨 Log excepción de red con formato profesional
+      await ApiLogger.addErrorLog(
+        error: 'NETWORK ERROR: ${e.toString()}',
+        function: 'sendPersonToApi',
         context: 'verify-document API call',
+        severity: 'HANDLED_ERROR',
       );
+
       // Manejo específico de errores comunes en dispositivos reales
       String errorMessage = 'Error de conexión';
       if (e.toString().contains('TimeoutException')) {
@@ -243,6 +240,14 @@ class ApiService {
         };
       }
     } catch (e) {
+      // 🚨 Log excepción de red con formato profesional
+      await ApiLogger.addErrorLog(
+        error: 'NETWORK ERROR: ${e.toString()}',
+        function: 'fetchBlacklistFromApi',
+        context: 'black-list API call',
+        severity: 'HANDLED_ERROR',
+      );
+
       return {
         'success': false,
         'message': 'Ups, revisa tu conexión a internet',
@@ -330,6 +335,14 @@ class ApiService {
         return {'success': false, 'message': 'Error: ${response.statusCode}'};
       }
     } catch (e) {
+      // 🚨 Log excepción de red con formato profesional
+      await ApiLogger.addErrorLog(
+        error: 'NETWORK ERROR: ${e.toString()}',
+        function: 'getBlacklist',
+        context: 'black-list API call',
+        severity: 'HANDLED_ERROR',
+      );
+
       // Manejo de errores de conexión o tiempo de espera
       return {
         'success': false,

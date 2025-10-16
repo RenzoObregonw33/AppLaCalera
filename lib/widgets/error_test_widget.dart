@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lacalera/services/database_services.dart';
+import 'package:lacalera/services/api_logger.dart';
 import 'package:http/http.dart' as http;
 
 /// Widget temporal para probar la captura de errores
@@ -35,9 +35,9 @@ class ErrorTestWidget extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Instrucciones
             Container(
               padding: const EdgeInsets.all(12),
@@ -61,15 +61,12 @@ class ErrorTestWidget extends StatelessWidget {
                     '1. Presiona "Iniciar Log Capture" arriba\n'
                     '2. Presiona cualquier botón de prueba abajo\n'
                     '3. Observa los errores aparecer en tiempo real',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue[600],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.blue[600]),
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 12),
 
             // Botón 1: Print simple
@@ -131,7 +128,7 @@ class ErrorTestWidget extends StatelessWidget {
             ),
 
             const SizedBox(height: 12),
-            
+
             // Footer con advertencia
             Container(
               padding: const EdgeInsets.all(8),
@@ -141,7 +138,11 @@ class ErrorTestWidget extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber, color: Colors.orange[700], size: 16),
+                  Icon(
+                    Icons.warning_amber,
+                    color: Colors.orange[700],
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -175,10 +176,7 @@ class ErrorTestWidget extends StatelessWidget {
         backgroundColor: iconColor.withOpacity(0.1),
         child: Icon(icon, color: iconColor, size: 20),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(
         subtitle,
         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -191,22 +189,46 @@ class ErrorTestWidget extends StatelessWidget {
 
   // 1. Print de prueba (reordenado al inicio)
   void _generarPrint(BuildContext context) {
-    debugPrint('🧪 PRUEBA: Print simple - ${DateTime.now()}');
-    debugPrint('📱 PRUEBA: Probando captura de debugPrint');
-    debugPrint('✅ PRUEBA: Si ves esto, la captura funciona');
-    print('🖨️ PRUEBA: Mensaje con print() normal');
-    _mostrarMensaje(context, 'Prints enviados - Revisa logs arriba', Colors.green);
+    ApiLogger.addInfoLog(
+      message: 'Print simple - ${DateTime.now()}',
+      function: '_generarPrint',
+      level: 'DEBUG',
+    );
+    ApiLogger.addInfoLog(
+      message: 'Probando captura de logs con ApiLogger',
+      function: '_generarPrint',
+      level: 'INFO',
+    );
+    ApiLogger.addInfoLog(
+      message: 'Si ves esto, la captura funciona',
+      function: '_generarPrint',
+      level: 'INFO',
+    );
+    _mostrarMensaje(
+      context,
+      'Logs enviados - Revisa logs arriba',
+      Colors.green,
+    );
   }
 
   // 2. Error simple - siempre funciona
   void _generarErrorSimple(BuildContext context) {
     try {
-      debugPrint('🧪 PRUEBA: Generando error simple...');
+      ApiLogger.addInfoLog(
+        message: 'Generando error simple...',
+        function: '_generarErrorSimple',
+        level: 'DEBUG',
+      );
       throw Exception(
-        '💥 Error de prueba generado a las ${DateTime.now().toLocal()}',
+        'Error de prueba generado a las ${DateTime.now().toLocal()}',
       );
     } catch (e) {
-      debugPrint('❌ Error simple capturado: $e');
+      ApiLogger.addErrorLog(
+        error: e.toString(),
+        function: '_generarErrorSimple',
+        context: 'Test de error simple',
+        severity: 'ERROR',
+      );
       _mostrarMensaje(context, 'Error simple generado', Colors.red);
     }
   }
@@ -214,12 +236,21 @@ class ErrorTestWidget extends StatelessWidget {
   // 3. Error de base de datos
   Future<void> _generarErrorBD(BuildContext context) async {
     try {
-      debugPrint('🧪 PRUEBA: Intentando query a tabla inexistente...');
+      ApiLogger.addInfoLog(
+        message: 'Intentando query a tabla inexistente...',
+        function: '_generarErrorBD',
+        level: 'DEBUG',
+      );
       final db = await DatabaseService.database;
       // Esto va a fallar porque la tabla no existe
       await db.rawQuery('SELECT * FROM tabla_que_no_existe_para_prueba');
     } catch (e) {
-      debugPrint('💾 Error de BD capturado: $e');
+      ApiLogger.addErrorLog(
+        error: e.toString(),
+        function: '_generarErrorBD',
+        context: 'Test de error de base de datos',
+        severity: 'ERROR',
+      );
       _mostrarMensaje(context, 'Error de BD generado', Colors.blue);
     }
   }
@@ -241,23 +272,40 @@ class ErrorTestWidget extends StatelessWidget {
 
   // 5. Múltiples eventos - NUEVO
   void _generarMultiplesEventos(BuildContext context) {
-    debugPrint('🔄 PRUEBA: Iniciando múltiples eventos...');
-    
-    // Generar varios prints
+    ApiLogger.addInfoLog(
+      message: 'Iniciando múltiples eventos...',
+      function: '_generarMultiplesEventos',
+      level: 'DEBUG',
+    );
+
+    // Generar varios logs
     for (int i = 1; i <= 3; i++) {
-      debugPrint('� EVENTO $i: Mensaje múltiple #$i');
+      ApiLogger.addInfoLog(
+        message: 'Mensaje múltiple #$i',
+        function: '_generarMultiplesEventos',
+        level: 'INFO',
+      );
     }
-    
-    // Generar un error después de los prints
+
+    // Generar un error después de los logs
     Future.delayed(Duration(milliseconds: 500), () {
       try {
-        debugPrint('🧪 PRUEBA: Generando error en evento múltiple...');
-        throw Exception('🔄 Error en secuencia múltiple - Evento final');
+        ApiLogger.addInfoLog(
+          message: 'Generando error en evento múltiple...',
+          function: '_generarMultiplesEventos',
+          level: 'DEBUG',
+        );
+        throw Exception('Error en secuencia múltiple - Evento final');
       } catch (e) {
-        debugPrint('❌ Error múltiple capturado: $e');
+        ApiLogger.addErrorLog(
+          error: e.toString(),
+          function: '_generarMultiplesEventos',
+          context: 'Test de múltiples eventos',
+          severity: 'ERROR',
+        );
       }
     });
-    
+
     _mostrarMensaje(context, 'Múltiples eventos enviados', Colors.purple);
   }
 
@@ -269,9 +317,7 @@ class ErrorTestWidget extends StatelessWidget {
           children: [
             Icon(Icons.check_circle, color: Colors.white, size: 20),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text('✅ $mensaje - Revisa los logs arriba'),
-            ),
+            Expanded(child: Text('✅ $mensaje - Revisa los logs arriba')),
           ],
         ),
         backgroundColor: color,

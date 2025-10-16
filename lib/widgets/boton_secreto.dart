@@ -49,7 +49,7 @@ class _BotonSecretoState extends State<BotonSecreto> {
       const SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.white),
+            Icon(Icons.bug_report, color: Colors.white),
             SizedBox(width: 8),
             Text(
               'Modo Debug activado',
