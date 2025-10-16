@@ -311,7 +311,6 @@ class _SecretScreenState extends State<SecretScreen> {
     );
   }
 
-
   Widget _buildCaptureControlPanel() {
     return Container(
       decoration: BoxDecoration(
