@@ -37,6 +37,7 @@ class ApiService {
   static Future<Map<String, dynamic>> sendPersonToApi({
     required String document,
     required int id,
+    required int templateId,
     String? movil,
     String? photoFrontBase64,
     String? photoReverseBase64,
@@ -48,6 +49,7 @@ class ApiService {
     final body = {
       'document': document,
       'id': id,
+      'template_id': templateId,
       if (movil != null && movil.isNotEmpty) 'movil': movil,
       'photo_front': photoFrontBase64,
       'photo_reverse': photoReverseBase64,

@@ -490,6 +490,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
         final apiResponse = await ApiService.sendPersonToApi(
           document: _dniCtrl.text,
           id: organiId,
+          templateId: _selectedModeloContratoId ?? 1,
           movil: telefonoCompleto ?? '',
           photoFrontBase64: fotoFrontBase64,
           photoReverseBase64: fotoReverseBase64,

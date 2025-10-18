@@ -68,6 +68,18 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
     }
   }
 
+  // Convertir ID del modelo de contrato a descripción
+  String _getModeloContratoDescripcion(String? modeloId) {
+    switch (modeloId) {
+      case '1':
+        return 'Template default';
+      case '2':
+        return 'REGIMEN 15';
+      default:
+        return modeloId ?? 'Sin especificar';
+    }
+  }
+
   // Verificar conexión a internet
   Future<bool> _verificarConexion() async {
     try {
@@ -226,6 +238,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
         final response = await ApiService.sendPersonToApi(
           document: registro['dni'] ?? '',
           id: idOrg,
+          templateId: int.tryParse(registro['modeloContrato'] ?? '1') ?? 1,
           movil: registro['telefono'] ?? '',
           photoFrontBase64: fotoFrontBase64,
           photoReverseBase64: fotoReverseBase64,
@@ -569,7 +582,7 @@ class _VerRegistrosScreenState extends State<VerRegistrosScreen> {
                 _buildInfoRow('Teléfono', registro['telefono'], Icons.phone),
                 _buildInfoRow(
                   'Modelo de Contrato',
-                  registro['modeloContrato'],
+                  _getModeloContratoDescripcion(registro['modeloContrato']),
                   Icons.work,
                 ),
                 _buildInfoRow(
