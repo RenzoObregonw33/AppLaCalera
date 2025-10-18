@@ -47,6 +47,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   void initState() {
     super.initState();
     _dniCtrl.addListener(_verificarDniDuplicado);
+    _cargarModelosContrato();
   }
 
   String? _ultimoDniDuplicado;
@@ -79,9 +80,79 @@ class _RegistroScreenState extends State<RegistroScreen> {
     }
   }
 
+  Future<void> _cargarModelosContrato() async {
+    setState(() {
+      _isLoadingModelos = true;
+    });
+
+    try {
+      print('🔍 Llamando al API ModelodeContrato con ID: 749');
+      final result = await ApiService.ModelodeContrato(749);
+      print('📥 Respuesta del API: $result');
+
+      if (result['success'] == true && result['data'] != null) {
+        print('✅ API respondió exitosamente');
+        final templates = result['data']['templates'] as List<dynamic>?;
+        print('📋 Templates recibidos: $templates');
+
+        if (templates != null) {
+          setState(() {
+            _modelosContrato = templates
+                .map(
+                  (template) => {
+                    'id': template['id'],
+                    'description': template['description'],
+                  },
+                )
+                .toList();
+
+            print('💾 Modelos procesados: $_modelosContrato');
+
+            // Seleccionar el primer modelo por defecto si hay opciones
+            if (_modelosContrato.isNotEmpty) {
+              _selectedModeloContrato = _modelosContrato[0]['description'];
+              _selectedModeloContratoId = _modelosContrato[0]['id'];
+              print(
+                '🎯 Modelo seleccionado por defecto: $_selectedModeloContrato (ID: $_selectedModeloContratoId)',
+              );
+            }
+          });
+        } else {
+          print('❌ Templates es null');
+          _usarValoresPorDefecto();
+        }
+      } else {
+        print('❌ API no fue exitoso o data es null');
+        print('📄 Success: ${result['success']}');
+        print('📄 Data: ${result['data']}');
+        _usarValoresPorDefecto();
+      }
+    } catch (e) {
+      print('💥 Error al cargar modelos: $e');
+      _usarValoresPorDefecto();
+    } finally {
+      setState(() {
+        _isLoadingModelos = false;
+      });
+    }
+  }
+
+  void _usarValoresPorDefecto() {
+    setState(() {
+      _modelosContrato = [
+        {'id': 1, 'description': 'Template default'},
+      ];
+      _selectedModeloContrato = 'Template default';
+      _selectedModeloContratoId = 1;
+    });
+    print('⚠️ Usando valores por defecto');
+  }
+
   final _telefonoCtrl = TextEditingController();
-  String? _selectedModeloContrato = 'Colaborador';
-  final List<String> _modeloContrato = ['Colaborador'];
+  String? _selectedModeloContrato;
+  int? _selectedModeloContratoId;
+  List<Map<String, dynamic>> _modelosContrato = [];
+  bool _isLoadingModelos = false;
   File? _fotoDniFrente;
   File? _fotoDniReverso;
   final ImagePicker _picker = ImagePicker();
@@ -359,7 +430,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
       }
 
       if (_isBlacklisted) {
-        LoadingDialog.cerrar(context); // 🆕 Cerrar diálogo antes del diálogo de confirmación
+        LoadingDialog.cerrar(
+          context,
+        ); // 🆕 Cerrar diálogo antes del diálogo de confirmación
         final confirmar = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -401,18 +474,18 @@ class _RegistroScreenState extends State<RegistroScreen> {
       // 🎯 NUEVA LÓGICA: Intentar enviar directamente a la nube primero
       bool enviadoALaNube = false;
       String mensajeResultado = "";
-      
+
       try {
         // Convertir fotos a base64 para envío a API
         String? fotoFrontBase64;
         String? fotoReverseBase64;
-        
+
         final bytesFrente = await File(_fotoDniFrente!.path).readAsBytes();
         final bytesReverso = await File(_fotoDniReverso!.path).readAsBytes();
-        
+
         fotoFrontBase64 = base64Encode(bytesFrente);
         fotoReverseBase64 = base64Encode(bytesReverso);
-        
+
         // Intentar envío a API
         final apiResponse = await ApiService.sendPersonToApi(
           document: _dniCtrl.text,
@@ -421,12 +494,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
           photoFrontBase64: fotoFrontBase64,
           photoReverseBase64: fotoReverseBase64,
         );
-        
+
         if (apiResponse['success'] == true) {
           enviadoALaNube = true;
           mensajeResultado = "Registro enviado exitosamente";
         } else {
-          mensajeResultado = "${apiResponse['message'] ?? 'Error desconocido'} - Guardado localmente";
+          mensajeResultado =
+              "${apiResponse['message'] ?? 'Error desconocido'} - Guardado localmente";
         }
       } catch (e) {
         mensajeResultado = "Sin conexión - Guardado localmente";
@@ -438,18 +512,20 @@ class _RegistroScreenState extends State<RegistroScreen> {
         'apellidoPaterno': _apellidoPaternoCtrl.text,
         'dni': _dniCtrl.text,
         'telefono': telefonoCompleto,
-        'modeloContrato': _selectedModeloContrato,
+        'modeloContrato': _selectedModeloContratoId?.toString() ?? '',
         'fotoDniFrente': _fotoDniFrente!.path,
         'fotoDniReverso': _fotoDniReverso!.path,
         'isBlacklisted': _isBlacklisted ? 1 : 0,
         'organi_id': organiId,
-        'enviadaNube': enviadoALaNube ? 1 : 0, // 🎯 Marcar si se envió a la nube
+        'enviadaNube': enviadoALaNube
+            ? 1
+            : 0, // 🎯 Marcar si se envió a la nube
       }, context);
 
       if (id != 0) {
         // 🆕 Cerrar diálogo de carga antes de mostrar el resultado
         LoadingDialog.cerrar(context);
-        
+
         // Mostrar mensaje según el resultado
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -467,7 +543,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
         setState(() {
           _fotoDniFrente = null;
           _fotoDniReverso = null;
-          _selectedModeloContrato = 'Colaborador';
+          _selectedModeloContrato = null;
+          _selectedModeloContratoId = null;
           _selectedCountry = _countries.firstWhere(
             (c) => c.code == 'PE',
           ); // Volver a Perú por defecto
@@ -477,7 +554,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       } else {
         // 🆕 Cerrar diálogo de carga antes de mostrar el error
         LoadingDialog.cerrar(context);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Error al guardar el registro - DNI duplicado"),
@@ -488,7 +565,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     } catch (e) {
       // 🆕 Cerrar diálogo de carga en caso de error
       LoadingDialog.cerrar(context);
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Error al procesar el registro: $e"),
@@ -514,7 +591,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
         _telefonoCtrl.clear();
         _fotoDniFrente = null;
         _fotoDniReverso = null;
-        _selectedModeloContrato = 'Colaborador';
+        _selectedModeloContrato = null;
+        _selectedModeloContratoId = null;
         _selectedCountry = _countries.firstWhere((c) => c.code == 'PE');
         _isBlacklisted = false;
       });
@@ -813,10 +891,35 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                items: _modeloContrato
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedModeloContrato = v),
+                items: _isLoadingModelos
+                    ? [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('Cargando...'),
+                        ),
+                      ]
+                    : _modelosContrato
+                          .map(
+                            (modelo) => DropdownMenuItem<String>(
+                              value: modelo['description'],
+                              child: Text(modelo['description']),
+                            ),
+                          )
+                          .toList(),
+                onChanged: _isLoadingModelos
+                    ? null
+                    : (v) {
+                        setState(() {
+                          _selectedModeloContrato = v;
+                          // Buscar el ID correspondiente a la descripción seleccionada
+                          final modeloSeleccionado = _modelosContrato
+                              .firstWhere(
+                                (modelo) => modelo['description'] == v,
+                                orElse: () => {'id': null},
+                              );
+                          _selectedModeloContratoId = modeloSeleccionado['id'];
+                        });
+                      },
                 validator: (v) =>
                     v == null ? "Selecciona un modelo de contrato" : null,
               ),
@@ -869,9 +972,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     ),
                   ),
                   child: Text(
-                    _dniDuplicado
-                        ? "DNI ya registrado"
-                        : "Registrar Candidato",
+                    _dniDuplicado ? "DNI ya registrado" : "Registrar Candidato",
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),

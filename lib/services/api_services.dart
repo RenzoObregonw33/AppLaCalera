@@ -37,7 +37,7 @@ class ApiService {
   static Future<Map<String, dynamic>> sendPersonToApi({
     required String document,
     required int id,
-    required String movil,
+    String? movil,
     String? photoFrontBase64,
     String? photoReverseBase64,
   }) async {
@@ -48,7 +48,7 @@ class ApiService {
     final body = {
       'document': document,
       'id': id,
-      'movil': movil,
+      if (movil != null && movil.isNotEmpty) 'movil': movil,
       'photo_front': photoFrontBase64,
       'photo_reverse': photoReverseBase64,
     };
@@ -347,6 +347,46 @@ class ApiService {
       return {
         'success': false,
         'message': 'Ups, revisa tu conexión a internet',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> ModelodeContrato(int id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final authToken = prefs.getString('auth_token') ?? '';
+
+      final Uri uri = Uri.parse('$baseUrl/web_services/template-contracts');
+      print('🌐 URL llamando: $uri');
+      print('🔗 BaseUrl: $baseUrl');
+      print('🔑 Auth Token: ${authToken.isNotEmpty ? "Presente" : "Ausente"}');
+
+      final response = await http.post(
+        uri,
+        body: json.encode({'id': id}),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (authToken.isNotEmpty) 'Authorization': authToken,
+        },
+      );
+
+      print('📊 Status Code: ${response.statusCode}');
+      print('📄 Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        return {'success': true, 'data': responseData};
+      } else {
+        return {
+          'success': false,
+          'message': 'Error del servidor: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: ${e.toString()}',
       };
     }
   }
