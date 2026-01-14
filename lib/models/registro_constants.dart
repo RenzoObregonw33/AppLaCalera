@@ -45,14 +45,19 @@ const String LABEL_MODELO_CONTRATO = "Modelo de Contrato";
 const String LABEL_REGISTRAR = "Registrar Candidato";
 const String LABEL_DNI_REGISTRADO = "DNI ya registrado";
 
-const String MSG_DNI_DUPLICADO = 'DNI duplicado. No puedes registrar este candidato.';
+const String MSG_DNI_DUPLICADO =
+    'DNI duplicado. No puedes registrar este candidato.';
 const String MSG_DNI_ESCANEADO = "DNI escaneado correctamente";
 const String MSG_CODIGO_NO_VALIDO = "Código de barras no válido";
-const String MSG_FOTOS_REQUERIDAS = "Debes tomar las fotos del DNI (frente y reverso)";
+const String MSG_FOTOS_REQUERIDAS =
+    "Debes tomar las fotos del DNI (frente y reverso)";
 const String MSG_CAMPOS_OBLIGATORIOS = "Completa todos los campos obligatorios";
-const String MSG_ADVERTENCIA_BLACKLIST = "Este DNI está en la lista negra. ¿Está seguro de que desea guardar el registro?";
+const String MSG_ADVERTENCIA_BLACKLIST =
+    "Este DNI está en la lista negra. ¿Está seguro de que desea guardar el registro?";
 const String MSG_REGISTRO_EXITOSO = "Registro enviado exitosamente";
 const String MSG_SIN_CONEXION = "Sin conexión - Guardado localmente";
 const String MSG_SINCRONIZADO = 'Se ha sincronizado correctamente';
-const String MSG_FOTO_FRENTE_CAPTURADA = "Foto del frente capturada correctamente";
-const String MSG_FOTO_REVERSO_CAPTURADA = "Foto del reverso capturada correctamente";
+const String MSG_FOTO_FRENTE_CAPTURADA =
+    "Foto del frente capturada correctamente";
+const String MSG_FOTO_REVERSO_CAPTURADA =
+    "Foto del reverso capturada correctamente";

@@ -31,6 +31,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _nombreCtrl = TextEditingController();
   final _apellidoPaternoCtrl = TextEditingController();
   final _dniCtrl = TextEditingController();
+  final List<Country> _countries = COUNTRIES_LIST;
 
   @override
   void initState() {
@@ -160,14 +161,12 @@ class _RegistroScreenState extends State<RegistroScreen> {
   void _showCountryPicker() {
     showDialog(
       context: context,
-      builder: (context) => buildCountryPickerDialog(
-        COUNTRIES_LIST,
-        (country) {
-          setState(() {
-            _selectedCountry = country;
-          });
-        },
-      ),
+      builder: (dialogContext) =>
+          buildCountryPickerDialog(dialogContext, COUNTRIES_LIST, (country) {
+            setState(() {
+              _selectedCountry = country;
+            });
+          }),
     );
   }
 
@@ -197,13 +196,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
       // Validar automáticamente después de escanear
       _validarBlacklist(_dniCtrl.text);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(MSG_DNI_ESCANEADO)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(MSG_DNI_ESCANEADO)));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(MSG_CODIGO_NO_VALIDO)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(MSG_CODIGO_NO_VALIDO)));
     }
   }
 
@@ -307,19 +306,17 @@ class _RegistroScreenState extends State<RegistroScreen> {
   Future<void> _guardarRegistro() async {
     // Validar campos del formulario
     if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(MSG_CAMPOS_OBLIGATORIOS)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(MSG_CAMPOS_OBLIGATORIOS)));
       return;
     }
 
     // Validar que existan las fotos
     if (_fotoDniFrente == null || _fotoDniReverso == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(MSG_FOTOS_REQUERIDAS),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(MSG_FOTOS_REQUERIDAS)));
       return;
     }
 
@@ -370,9 +367,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text("ADVERTENCIA"),
-            content: const Text(
-              MSG_ADVERTENCIA_BLACKLIST,
-            ),
+            content: const Text(MSG_ADVERTENCIA_BLACKLIST),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -751,7 +746,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
                       decoration: InputDecoration(
                         labelText: LABEL_TELEFONO,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(INPUT_FIELD_RADIUS),
+                          borderRadius: BorderRadius.circular(
+                            INPUT_FIELD_RADIUS,
+                          ),
                         ),
                       ),
                       keyboardType: TextInputType.phone,

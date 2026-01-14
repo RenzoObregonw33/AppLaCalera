@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'registro_constants.dart';
-import 'country_model.dart';
+import 'package:lacalera/models/registro_constants.dart';
+import 'package:lacalera/models/country_model.dart';
 
 // Widget para construir encabezados de sección
 Widget buildSectionHeader({required String title, required IconData icon}) {
@@ -77,10 +77,7 @@ Widget buildFotoButton(String label, File? image, VoidCallback onTap) {
 }
 
 // Widget selector de país
-Widget buildCountrySelector(
-  Country selectedCountry,
-  VoidCallback onTap,
-) {
+Widget buildCountrySelector(Country selectedCountry, VoidCallback onTap) {
   return GestureDetector(
     onTap: onTap,
     child: Container(
@@ -90,10 +87,7 @@ Widget buildCountrySelector(
         border: Border.all(color: Colors.grey.shade400),
         borderRadius: BorderRadius.circular(INPUT_FIELD_RADIUS),
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
@@ -116,11 +110,7 @@ Widget buildCountrySelector(
             ),
           ),
           const SizedBox(width: 2),
-          const Icon(
-            Icons.arrow_drop_down,
-            size: 16,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.arrow_drop_down, size: 16, color: Colors.grey),
         ],
       ),
     ),
@@ -129,6 +119,7 @@ Widget buildCountrySelector(
 
 // Widget para el diálogo del selector de países
 Widget buildCountryPickerDialog(
+  BuildContext dialogContext,
   List<Country> countries,
   Function(Country) onCountrySelected,
 ) {
@@ -163,7 +154,7 @@ Widget buildCountryPickerDialog(
                   ),
                   onTap: () {
                     onCountrySelected(country);
-                    Navigator.pop(context);
+                    Navigator.pop(dialogContext);
                   },
                 );
               },
@@ -171,7 +162,7 @@ Widget buildCountryPickerDialog(
           ),
           const SizedBox(height: SPACING_LARGE),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cerrar'),
           ),
         ],
