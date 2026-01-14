@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lacalera/models/country_model.dart';
+import 'package:lacalera/models/registro_constants.dart';
 import 'package:lacalera/screens/barcode_scanner_screen.dart';
 import 'package:lacalera/screens/secret_screen.dart';
 import 'package:lacalera/screens/ver_registros_screen.dart';
@@ -10,22 +12,9 @@ import 'package:lacalera/services/api_services.dart';
 import 'package:lacalera/services/database_services.dart';
 import 'package:lacalera/services/secret_mode_service.dart';
 import 'package:lacalera/widgets/loading_dialog.dart';
+import 'package:lacalera/widgets/registro_widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class Country {
-  final String name;
-  final String code;
-  final String dialCode;
-  final String flag;
-
-  Country({
-    required this.name,
-    required this.code,
-    required this.dialCode,
-    required this.flag,
-  });
-}
 
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
@@ -60,7 +49,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       if (existe && (_ultimoDniDuplicado != dni)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('DNI duplicado. No puedes registrar este candidato.'),
+            content: Text(MSG_DNI_DUPLICADO),
             backgroundColor: Colors.black,
             duration: Duration(seconds: 2),
           ),
@@ -158,22 +147,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isCheckingBlacklist = false;
   bool _isBlacklisted = false;
-  // Removida _isLoading ya que ahora usamos LoadingDialog
-
-  // Lista de países
-  final List<Country> _countries = [
-    Country(name: 'Perú', code: 'PE', dialCode: '+51', flag: '🇵🇪'),
-    Country(name: 'Argentina', code: 'AR', dialCode: '+54', flag: '🇦🇷'),
-    Country(name: 'Bolivia', code: 'BO', dialCode: '+591', flag: '🇧🇴'),
-    Country(name: 'Chile', code: 'CL', dialCode: '+56', flag: '🇨🇱'),
-    Country(name: 'Colombia', code: 'CO', dialCode: '+57', flag: '🇨🇴'),
-    Country(name: 'Ecuador', code: 'EC', dialCode: '+593', flag: '🇪🇨'),
-    Country(name: 'México', code: 'MX', dialCode: '+52', flag: '🇲🇽'),
-    Country(name: 'España', code: 'ES', dialCode: '+34', flag: '🇪🇸'),
-    Country(name: 'Estados Unidos', code: 'US', dialCode: '+1', flag: '🇺🇸'),
-    Country(name: 'Brasil', code: 'BR', dialCode: '+55', flag: '🇧🇷'),
-    Country(name: 'Venezuela', code: 'VE', dialCode: '+58', flag: '🇻🇪'),
-  ];
 
   // País seleccionado (Perú por defecto)
   Country _selectedCountry = Country(
@@ -187,53 +160,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
   void _showCountryPicker() {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Seleccionar País',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 300,
-                width: 300,
-                child: ListView.builder(
-                  itemCount: _countries.length,
-                  itemBuilder: (context, index) {
-                    final country = _countries[index];
-                    return ListTile(
-                      leading: Text(
-                        country.flag,
-                        style: const TextStyle(fontSize: 20),
-                      ),
-                      title: Text(country.name),
-                      trailing: Text(
-                        country.dialCode,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      onTap: () {
-                        setState(() {
-                          _selectedCountry = country;
-                        });
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          ),
-        ),
+      builder: (context) => buildCountryPickerDialog(
+        COUNTRIES_LIST,
+        (country) {
+          setState(() {
+            _selectedCountry = country;
+          });
+        },
       ),
     );
   }
@@ -265,11 +198,11 @@ class _RegistroScreenState extends State<RegistroScreen> {
       _validarBlacklist(_dniCtrl.text);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("DNI escaneado correctamente")),
+        const SnackBar(content: Text(MSG_DNI_ESCANEADO)),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Código de barras no válido")),
+        const SnackBar(content: Text(MSG_CODIGO_NO_VALIDO)),
       );
     }
   }
@@ -348,7 +281,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Foto del frente capturada correctamente"),
+          content: Text(MSG_FOTO_FRENTE_CAPTURADA),
           duration: Duration(seconds: 1),
         ),
       );
@@ -364,7 +297,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Foto del reverso capturada correctamente"),
+          content: Text(MSG_FOTO_REVERSO_CAPTURADA),
           duration: Duration(seconds: 1),
         ),
       );
@@ -375,7 +308,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     // Validar campos del formulario
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Completa todos los campos obligatorios")),
+        const SnackBar(content: Text(MSG_CAMPOS_OBLIGATORIOS)),
       );
       return;
     }
@@ -384,7 +317,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     if (_fotoDniFrente == null || _fotoDniReverso == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Debes tomar las fotos del DNI (frente y reverso)"),
+          content: Text(MSG_FOTOS_REQUERIDAS),
         ),
       );
       return;
@@ -438,7 +371,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
           builder: (context) => AlertDialog(
             title: const Text("ADVERTENCIA"),
             content: const Text(
-              "Este DNI está en la lista negra. ¿Está seguro de que desea guardar el registro?",
+              MSG_ADVERTENCIA_BLACKLIST,
             ),
             actions: [
               TextButton(
@@ -498,13 +431,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
         if (apiResponse['success'] == true) {
           enviadoALaNube = true;
-          mensajeResultado = "Registro enviado exitosamente";
+          mensajeResultado = MSG_REGISTRO_EXITOSO;
         } else {
           mensajeResultado =
               "${apiResponse['message'] ?? 'Error desconocido'} - Guardado localmente";
         }
       } catch (e) {
-        mensajeResultado = "Sin conexión - Guardado localmente";
+        mensajeResultado = MSG_SIN_CONEXION;
       }
 
       // 📝 Guardar en base de datos local (siempre)
@@ -666,7 +599,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        backgroundColor: const Color(0xFF1565C0),
+        backgroundColor: PRIMARY_COLOR,
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
@@ -686,7 +619,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Sección DNI
-              _buildSectionHeader(title: "DNI", icon: Icons.badge_outlined),
+              buildSectionHeader(title: "DNI", icon: Icons.badge_outlined),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -777,7 +710,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               const SizedBox(height: 24),
 
               // Sección Información Personal
-              _buildSectionHeader(
+              buildSectionHeader(
                 title: "Información Personal",
                 icon: Icons.person_outline,
               ),
@@ -785,10 +718,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
               TextFormField(
                 controller: _nombreCtrl,
                 decoration: InputDecoration(
-                  labelText: "Nombre",
+                  labelText: LABEL_NOMBRE,
                   prefixIcon: Icon(Icons.person, color: Colors.grey.shade400),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(INPUT_FIELD_RADIUS),
                   ),
                 ),
                 validator: (v) =>
@@ -798,10 +731,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
               TextFormField(
                 controller: _apellidoPaternoCtrl,
                 decoration: InputDecoration(
-                  labelText: "Apellido Paterno (opcional)",
+                  labelText: LABEL_APELLIDO,
                   prefixIcon: Icon(Icons.person, color: Colors.grey.shade400),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(INPUT_FIELD_RADIUS),
                   ),
                 ),
                 // Removida validación - ahora es opcional
@@ -810,58 +743,15 @@ class _RegistroScreenState extends State<RegistroScreen> {
               Row(
                 children: [
                   // Selector de código de país (ahora clickeable)
-                  GestureDetector(
-                    onTap: _showCountryPicker,
-                    child: Container(
-                      width: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              _selectedCountry.flag,
-                              style: const TextStyle(fontSize: 18),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              _selectedCountry.dialCode,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          const Icon(
-                            Icons.arrow_drop_down,
-                            size: 16,
-                            color: Colors.grey,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  buildCountrySelector(_selectedCountry, _showCountryPicker),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextFormField(
                       controller: _telefonoCtrl,
                       decoration: InputDecoration(
-                        labelText: "Teléfono (opcional)",
+                        labelText: LABEL_TELEFONO,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(INPUT_FIELD_RADIUS),
                         ),
                       ),
                       keyboardType: TextInputType.phone,
@@ -878,7 +768,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               const SizedBox(height: 24),
 
               // Sección Modelo de Contrato
-              _buildSectionHeader(
+              buildSectionHeader(
                 title: "Modelo de Contrato",
                 icon: Icons.work_outline,
               ),
@@ -927,7 +817,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
               const SizedBox(height: 24),
 
               // Sección Documento de Identidad
-              _buildSectionHeader(
+              buildSectionHeader(
                 title: "Documento de Identidad",
                 icon: Icons.credit_card,
               ),
@@ -938,14 +828,14 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   // Botón para foto del frente
-                  _buildFotoButton(
+                  buildFotoButton(
                     "Frente del DNI",
                     _fotoDniFrente,
                     _tomarFotoFrente,
                   ),
 
                   // Botón para foto del reverso
-                  _buildFotoButton(
+                  buildFotoButton(
                     "Reverso del DNI",
                     _fotoDniReverso,
                     _tomarFotoReverso,
@@ -963,17 +853,17 @@ class _RegistroScreenState extends State<RegistroScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: (_isBlacklisted || _dniDuplicado)
                         ? Colors.grey
-                        : const Color(0xFF1565C0),
+                        : PRIMARY_COLOR,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 16,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(BUTTON_RADIUS),
                     ),
                   ),
                   child: Text(
-                    _dniDuplicado ? "DNI ya registrado" : "Registrar Candidato",
+                    _dniDuplicado ? LABEL_DNI_REGISTRADO : LABEL_REGISTRAR,
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),
@@ -1026,19 +916,19 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.sync, color: Color(0xFF1565C0)),
+                leading: const Icon(Icons.sync, color: PRIMARY_COLOR),
                 title: const Text('Sincronizar'),
                 onTap: _sincronizar,
               ),
               ListTile(
-                leading: const Icon(Icons.list_alt, color: Color(0xFF1565C0)),
+                leading: const Icon(Icons.list_alt, color: PRIMARY_COLOR),
                 title: const Text('Colaboradores'),
                 onTap: _verRegistros,
               ),
               // Mostrar opción de errores solo si el modo está activado
               if (secretService.isErrorModeEnabled)
                 ListTile(
-                  leading: const Icon(Icons.error, color: Color(0xFF1565C0)),
+                  leading: const Icon(Icons.error, color: PRIMARY_COLOR),
                   title: const Text('Modo Debug'),
                   onTap: _irAPantallaErrores,
                 ),
@@ -1046,79 +936,6 @@ class _RegistroScreenState extends State<RegistroScreen> {
           ),
         );
       },
-    );
-  }
-
-  // Widget para construir encabezados de sección
-  Widget _buildSectionHeader({required String title, required IconData icon}) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFF1565C0), size: 24),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1565C0),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Widget para construir botones de fotos del DNI
-  Widget _buildFotoButton(String label, File? image, VoidCallback onTap) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF1565C0), width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.3),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: image != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(image, fit: BoxFit.cover),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.camera_alt,
-                        color: const Color(0xFF1565C0),
-                        size: 40,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Tomar foto",
-                        style: TextStyle(
-                          color: const Color(0xFF1565C0),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ],
     );
   }
 }
