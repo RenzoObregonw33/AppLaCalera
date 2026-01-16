@@ -885,7 +885,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
             padding: EdgeInsets.zero,
             children: [
               SizedBox(
-                height: 130,
+                height: 140,
                 child: DrawerHeader(
                   decoration: const BoxDecoration(color: Color(0xFF1565C0)),
                   child: Column(
