@@ -103,7 +103,7 @@ Widget buildCountrySelector(Country selectedCountry, VoidCallback onTap) {
             child: Text(
               selectedCountry.dialCode,
               style: const TextStyle(
-                fontSize: 16,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'dart:io';
 import 'package:lacalera/models/user_models.dart';
 import 'package:lacalera/screens/login_screen.dart';
 import 'package:lacalera/screens/registro_screen.dart';
@@ -12,30 +14,51 @@ class HomeScreen extends StatelessWidget {
 
   // Método para cerrar sesión
   void _cerrarSesion(BuildContext context) async {
-    // Mostrar diálogo de confirmación
     final confirmar = await showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Cerrar sesión'),
-          content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(color: Color(0xFF1565C0)),
+        if (Platform.isIOS) {
+          return CupertinoAlertDialog(
+            title: const Text('Cerrar sesión'),
+            content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Color(0xFF1565C0)),
+                ),
+                isDefaultAction: true,
               ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
-                'Cerrar sesión',
-                style: TextStyle(color: Colors.red),
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Cerrar sesión'),
+                isDestructiveAction: true,
               ),
-            ),
-          ],
-        );
+            ],
+          );
+        } else {
+          return AlertDialog(
+            title: const Text('Cerrar sesión'),
+            content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Color(0xFF1565C0)),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(
+                  'Cerrar sesión',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          );
+        }
       },
     );
 
