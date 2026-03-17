@@ -70,6 +70,18 @@ class _RegistroScreenState extends State<RegistroScreen> {
     }
   }
 
+  /*final prefs = await SharedPreferences.getInstance();
+        final organiId = prefs.getInt('organi_id') ?? 0;
+
+        if (organiId <= 0) {
+          print('❌ No hay organi_id seleccionado. No se consulta template-contracts.');
+          _usarValoresPorDefecto();
+          return;
+        }
+
+        print('🔍 Llamando al API ModelodeContrato con organi_id: $organiId');
+        final result = await ApiService.ModelodeContrato(organiId);*/
+        //Todo: Codigo hardcodeado xq no esta definido el modelo de contrato en el backend, se debe eliminar esta parte cuando el backend este listo y se pueda consultar por organi_id
   Future<void> _cargarModelosContrato() async {
     setState(() {
       _isLoadingModelos = true;

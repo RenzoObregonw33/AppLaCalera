@@ -196,6 +196,8 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
 
+      print('📥 [LOGIN] response: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
@@ -360,6 +362,7 @@ class ApiService {
 
       final Uri uri = Uri.parse('$baseUrl/web_services/template-contracts');
       print('🌐 URL llamando: $uri');
+      print('📤 Body enviado: ${json.encode({'id': id})}');
       print('🔗 BaseUrl: $baseUrl');
       print('🔑 Auth Token: ${authToken.isNotEmpty ? "Presente" : "Ausente"}');
 

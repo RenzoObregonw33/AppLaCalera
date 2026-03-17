@@ -1,4 +1,30 @@
 // user_model.dart
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? fallback;
+  return fallback;
+}
+
+String _asString(dynamic value, {String fallback = ''}) {
+  if (value == null) return fallback;
+  final text = value.toString();
+  return text == 'null' ? fallback : text;
+}
+
+List<Organizacion> _asOrganizations(dynamic value) {
+  if (value is! List) return const [];
+
+  return value
+      .whereType<Map>()
+      .map(
+        (org) => Organizacion.fromJson(
+          Map<String, dynamic>.from(org),
+        ),
+      )
+      .toList();
+}
+
 class User {
   final int id;
   final int activo;
@@ -28,19 +54,17 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
-      activo: json['activo'],
-      foto: json['foto'],
-      persoNombre: json['perso_nombre'],
-      persoApPaterno: json['perso_apPaterno'],
-      persoApMaterno: json['perso_apMaterno'],
-      email: json['email'],
-      fotoUrl: json['foto_url'],
-      rolId: json['rol_id'],
-      rolNombre: json['rol_nombre'],
-      organizaciones: (json['organizaciones'] as List)
-          .map((org) => Organizacion.fromJson(org))
-          .toList(),
+      id: _asInt(json['id']),
+      activo: _asInt(json['activo']),
+      foto: _asString(json['foto'], fallback: ''),
+      persoNombre: _asString(json['perso_nombre']),
+      persoApPaterno: _asString(json['perso_apPaterno']),
+      persoApMaterno: _asString(json['perso_apMaterno']),
+      email: _asString(json['email']),
+      fotoUrl: _asString(json['foto_url']),
+      rolId: _asInt(json['rol_id']),
+      rolNombre: _asString(json['rol_nombre']),
+      organizaciones: _asOrganizations(json['organizaciones']),
     );
   }
 }
@@ -62,11 +86,11 @@ class Organizacion {
 
   factory Organizacion.fromJson(Map<String, dynamic> json) {
     return Organizacion(
-      organiId: json['organi_id'],
-      organiRuc: json['organi_ruc'],
-      organiRazonSocial: json['organi_razonSocial'],
-      organiTipo: json['organi_tipo'],
-      cantidadEmpleadosLumina: json['cantidad_empleados_lumina'],
+      organiId: _asInt(json['organi_id']),
+      organiRuc: _asString(json['organi_ruc']),
+      organiRazonSocial: _asString(json['organi_razonSocial']),
+      organiTipo: _asString(json['organi_tipo']),
+      cantidadEmpleadosLumina: _asInt(json['cantidad_empleados_lumina']),
     );
   }
 }

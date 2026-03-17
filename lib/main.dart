@@ -6,51 +6,74 @@ import 'package:lacalera/screens/home_screen.dart';
 import 'package:lacalera/models/user_models.dart';
 import 'package:lacalera/services/secret_mode_service.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'dart:ui';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Ya no necesitamos inicializar la BD aquí, se hace por organización
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
 
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('auth_token');
-  final loginTime = prefs.getInt('login_time');
-  final userJson = prefs.getString('user_data');
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Startup error: $error');
+    return true;
+  };
 
-  Widget initialScreen = const LoginScreen();
+  runZonedGuarded(() async {
+    final initialScreen = await _resolveInitialScreen();
+    runApp(MyApp(initialScreen: initialScreen));
+  }, (error, stack) {
+    debugPrint('Unhandled zone error: $error');
+    runApp(const MyApp(initialScreen: LoginScreen()));
+  });
+}
 
-  if (token != null && loginTime != null) {
-    final currentTime = DateTime.now().millisecondsSinceEpoch;
-    final hours48 = 48 * 60 * 60 * 1000; // 48 horas en milisegundos
+Future<Widget> _resolveInitialScreen() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final loginTime = prefs.getInt('login_time');
+    final userJson = prefs.getString('user_data');
 
-    if (currentTime - loginTime < hours48) {
-      // Todavía dentro de las 48 horas
-      if (userJson != null) {
-        try {
-          final user = User.fromJson(jsonDecode(userJson));
-          initialScreen = HomeScreen(user: user);
-        } catch (e) {
-          // Si falla el parseo, volvemos al login
-          await prefs.remove('auth_token');
-          await prefs.remove('login_time');
-          await prefs.remove('user_data');
+    Widget initialScreen = const LoginScreen();
 
-          // 🚨 DESACTIVAR MODO SECRETO POR ERROR EN DATOS (logs se mantienen)
-          SecretModeService.clearSecretMode();
+    if (token != null && loginTime != null) {
+      final currentTime = DateTime.now().millisecondsSinceEpoch;
+      final hours48 = 48 * 60 * 60 * 1000; // 48 horas en milisegundos
+
+      if (currentTime - loginTime < hours48) {
+        // Todavía dentro de las 48 horas
+        if (userJson != null) {
+          try {
+            final user = User.fromJson(jsonDecode(userJson));
+            initialScreen = HomeScreen(user: user);
+          } catch (e) {
+            // Si falla el parseo, volvemos al login
+            await prefs.remove('auth_token');
+            await prefs.remove('login_time');
+            await prefs.remove('user_data');
+
+            // DESACTIVAR MODO SECRETO POR ERROR EN DATOS (logs se mantienen)
+            SecretModeService.clearSecretMode();
+          }
         }
+      } else {
+        // Token vencido -> limpiamos datos
+        await prefs.remove('auth_token');
+        await prefs.remove('login_time');
+        await prefs.remove('user_data');
+
+        // DESACTIVAR MODO SECRETO POR VENCIMIENTO (logs se mantienen)
+        SecretModeService.clearSecretMode();
       }
-    } else {
-      // Token vencido → limpiamos datos
-      await prefs.remove('auth_token');
-      await prefs.remove('login_time');
-      await prefs.remove('user_data');
-
-      // 🚨 DESACTIVAR MODO SECRETO POR VENCIMIENTO (logs se mantienen)
-      SecretModeService.clearSecretMode();
     }
-  }
 
-  runApp(MyApp(initialScreen: initialScreen));
+    return initialScreen;
+  } catch (e) {
+    return const LoginScreen();
+  }
 }
 
 class MyApp extends StatelessWidget {

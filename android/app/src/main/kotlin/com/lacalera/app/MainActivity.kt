@@ -1,4 +1,4 @@
-package com.lacalera.app
+package com.validora.app
 
 import io.flutter.embedding.android.FlutterActivity
 
