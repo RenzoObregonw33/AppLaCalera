@@ -55,6 +55,8 @@ class ApiService {
       'photo_reverse': photoReverseBase64,
     };
 
+    print('📤 [VERIFY-DOCUMENT] payload: ${jsonEncode(body)}');
+
     try {
       final response = await http
           .post(
