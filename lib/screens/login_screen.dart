@@ -162,203 +162,206 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              BotonSecreto(
-                onSecretActivated: _activarModoErrores,
-                tapCountRequired: 7,
-                child: Image.asset(
-                  'assets/logorh.png', // Cambia la ruta si tu logo tiene otro nombre o carpeta
-                  height: 100,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                BotonSecreto(
+                  onSecretActivated: _activarModoErrores,
+                  tapCountRequired: 7,
+                  child: Image.asset(
+                    'assets/logorh.png', // Cambia la ruta si tu logo tiene otro nombre o carpeta
+                    height: 100,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Hola de nuevo!',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1565C0),
+                const SizedBox(height: 16),
+                const Text(
+                  'Hola de nuevo!',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1565C0),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Bienvenido de regreso,',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const Text(
-                'te extrañamos!',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 50),
+                const SizedBox(height: 12),
+                const Text(
+                  'Bienvenido de regreso,',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const Text(
+                  'te extrañamos!',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 50),
 
-              // Campo de Email
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  prefixIcon: Icon(
-                    Icons.person_outline,
-                    color: _emailError != null
-                        ? Colors.red
-                        : const Color(0xFF1565C0),
-                  ),
-                  suffixIcon: _emailError != null
-                      ? const Icon(Icons.error_outline, color: Colors.red)
-                      : null,
-                  errorText: _emailError,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF1565C0),
-                      width: 2,
+                // Campo de Email
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    prefixIcon: Icon(
+                      Icons.person_outline,
+                      color: _emailError != null
+                          ? Colors.red
+                          : const Color(0xFF1565C0),
+                    ),
+                    suffixIcon: _emailError != null
+                        ? const Icon(Icons.error_outline, color: Colors.red)
+                        : null,
+                    errorText: _emailError,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1565C0),
+                        width: 2,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.grey),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red),
                     ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red),
-                  ),
+                  onChanged: (value) {
+                    if (_emailError != null) {
+                      setState(() {
+                        _emailError = null;
+                      });
+                    }
+                  },
                 ),
-                onChanged: (value) {
-                  if (_emailError != null) {
-                    setState(() {
-                      _emailError = null;
-                    });
-                  }
-                },
-              ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Campo de Password
-              TextField(
-                controller: _passwordController,
-                obscureText: _ocultarPassword,
-                decoration: InputDecoration(
-                  labelText: 'Contraseña',
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  prefixIcon: Icon(
-                    Icons.lock_outline,
-                    color: _passwordError != null
-                        ? Colors.red
-                        : const Color(0xFF1565C0),
-                  ),
-                  suffixIcon: _passwordError != null
-                      ? const Icon(Icons.error_outline, color: Colors.red)
-                      : IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _ocultarPassword = !_ocultarPassword;
-                            });
-                          },
-                          icon: Icon(
-                            _ocultarPassword
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            color: Colors.grey,
-                          ),
-                        ),
-                  errorText: _passwordError,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF1565C0),
-                      width: 2,
+                // Campo de Password
+                TextField(
+                  controller: _passwordController,
+                  obscureText: _ocultarPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    prefixIcon: Icon(
+                      Icons.lock_outline,
+                      color: _passwordError != null
+                          ? Colors.red
+                          : const Color(0xFF1565C0),
                     ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.red),
-                  ),
-                ),
-                onChanged: (value) {
-                  if (_passwordError != null) {
-                    setState(() {
-                      _passwordError = null;
-                    });
-                  }
-                },
-              ),
-
-              // Enlace para recuperar contraseña
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ResetPasswordScreen(),
+                    suffixIcon: _passwordError != null
+                        ? const Icon(Icons.error_outline, color: Colors.red)
+                        : IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _ocultarPassword = !_ocultarPassword;
+                              });
+                            },
+                            icon: Icon(
+                              _ocultarPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
                             ),
-                          );
-                        },
-                  child: const Text(
-                    'Recuperar Contraseña',
-                    style: TextStyle(
-                      color: Color(0xFF1565C0),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                          ),
+                    errorText: _passwordError,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF1565C0),
+                        width: 2,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.grey),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    if (_passwordError != null) {
+                      setState(() {
+                        _passwordError = null;
+                      });
+                    }
+                  },
+                ),
+
+                // Enlace para recuperar contraseña
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ResetPasswordScreen(),
+                              ),
+                            );
+                          },
+                    child: const Text(
+                      'Recuperar Contraseña',
+                      style: TextStyle(
+                        color: Color(0xFF1565C0),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-              // Botón de Login
-              _isLoading
-                  ? const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF1565C0),
-                      ),
-                    )
-                  : SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1565C0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                // Botón de Login
+                _isLoading
+                    ? const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF1565C0),
+                        ),
+                      )
+                    : SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1565C0),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Iniciar Sesión',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        child: const Text(
-                          'Iniciar Sesión',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                       ),
-                    ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
