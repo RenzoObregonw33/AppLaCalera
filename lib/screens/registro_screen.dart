@@ -654,7 +654,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
                             : null,
                       ),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(8),
+                      ],
                       validator: (v) {
                         if (v == null || v.isEmpty) {
                           return "Campo requerido";

@@ -65,7 +65,10 @@ class HomeScreen extends StatelessWidget {
     if (confirmar == true) {
       // Limpiar datos de sesión
       final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      await prefs.remove('auth_token');
+      await prefs.remove('login_time');
+      await prefs.remove('user_data');
+      await prefs.remove('organi_id');
 
       // 🚨 DESACTIVAR MODO SECRETO Y DETENER CAPTURA (logs se mantienen)
       SecretModeService.clearSecretMode();

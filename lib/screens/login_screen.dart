@@ -26,6 +26,18 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    _emailController.text = prefs.getString('saved_email') ?? '';
+    _passwordController.text = prefs.getString('saved_password') ?? '';
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -87,6 +99,8 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('auth_token', response['token'] ?? '');
         await prefs.setInt('login_time', DateTime.now().millisecondsSinceEpoch);
         await prefs.setString('user_data', jsonEncode(response['user']));
+        await prefs.setString('saved_email', email);
+        await prefs.setString('saved_password', password);
 
         // Inicializar bases de datos para cada organización
         for (var org in user.organizaciones) {
